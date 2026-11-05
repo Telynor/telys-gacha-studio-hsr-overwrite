@@ -2,6 +2,7 @@
 
 An addendum to **Gacha Studio**, module ID `gacha-banner`, for Foundry VTT 14.
 It replaces the host's pull presentation and extends its reward programmer.
+The host saves the selected rewards to inventory before the reveal begins.
 The original Gacha Studio module must remain installed and enabled.
 
 ## Install
@@ -66,11 +67,36 @@ per-reward splash override. The source Actor is never modified.
 - Real pulls always retain the host's selected rewards, rarities, and order.
   The demonstration's shuffle is not included in production.
 - Concurrent pull presentations queue instead of replacing each other.
+- Inventory creation and stacking updates finish before opening videos or reward
+  reveals start. Closing the tab during a reveal does not cancel saved rewards.
+- The host's anti-spam lock stays active until the presentation closes. The
+  reveal appears above the banner's loading screen so it can receive clicks.
 - Reduced-motion preferences show held rewards without the reveal animation.
 
 The old card-flipping/mulligan/discard presentation is replaced by this flow.
 Gacha Studio's payment, actual reward selection, pity, 50/50, item stacking,
-inventory delivery, and result chat remain handled by the host engine.
+inventory delivery, and result chat remain handled by the host engine. This
+extension moves presentation after that delivery and waits for the host's actual
+inventory writes, including item creation that the host starts without awaiting.
+
+## Interrupted or failed pulls
+
+Version 1.0.3 records the latest 20 selected pulls on the recipient Actor, with
+the original reward Item UUIDs, quantities, banner, and delivery status. A GM can
+inspect them using the extension API:
+
+```js
+game.modules.get("telys-gacha-studio-hsr-overwrite").api.getPullHistory(actor)
+```
+
+An inaccessible reward link or a rejected inventory save is reported as a
+delivery failure. Review the recorded rewards against the Actor's inventory
+before manually repairing a failed or partial delivery. The record does not
+automatically grant another copy or charge for a replacement pull.
+
+Pulls interrupted on earlier versions did not have this record. Their selected
+rewards cannot be reconstructed from the extension's startup console log;
+missing currency or rewards need a GM repair.
 
 ## Existing ticket/train/Pom-Pom opening
 

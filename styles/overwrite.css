@@ -43,7 +43,8 @@
 .tgs-entry-editor [hidden]{display:none!important}
 .tgs-reward-config-window .form-footer{flex-wrap:wrap;margin-top:18px}
 
-#tgs-hsr-overlay{position:fixed;inset:0;z-index:100000;isolation:isolate;overflow:hidden;background:#000;color:#edf0f7;font:16px Arial,sans-serif;touch-action:manipulation;user-select:none;--tgs-reward-color:#f4cf7d}
+/* The host banner uses z-index:999999; its processing loader must sit below the reveal. */
+#tgs-hsr-overlay{position:fixed;inset:0;z-index:1000000;isolation:isolate;overflow:hidden;background:#000;color:#edf0f7;font:16px Arial,sans-serif;touch-action:manipulation;user-select:none;--tgs-reward-color:#f4cf7d}
 #tgs-hsr-overlay *{box-sizing:border-box}#tgs-hsr-overlay [hidden]{display:none!important}
 #tgs-hsr-overlay .tgs-starfield,#tgs-hsr-overlay .tgs-aura,#tgs-hsr-overlay .tgs-opening,#tgs-hsr-overlay .tgs-frame{position:absolute;inset:0;width:100%;height:100%;display:block;max-width:none;max-height:none;border:0;border-radius:0;object-fit:cover;object-position:50% 50%;pointer-events:none}
 #tgs-hsr-overlay .tgs-starfield{z-index:0;opacity:0}#tgs-hsr-overlay .tgs-aura{z-index:1;opacity:0}#tgs-hsr-overlay .tgs-frame{z-index:2}#tgs-hsr-overlay .tgs-opening{z-index:6}

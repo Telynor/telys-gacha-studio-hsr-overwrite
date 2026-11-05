@@ -20,7 +20,7 @@ export function installAnimationOverride(AnimationClass, {renderer = playSequenc
           playSFX: (src, volume) => AnimationClass.playSFX?.(src, volume),
         });
       } catch (error) {
-        console.error(`${ID} | Reveal failed; returning the original rewards for delivery.`, error);
+        console.error(`${ID} | Reveal failed; preserving the original reward results.`, error);
         const overlay = globalThis.document?.getElementById("tgs-hsr-overlay");
         if (overlay?._tgsFinish) overlay._tgsFinish(); else overlay?.remove();
       }

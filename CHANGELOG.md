@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.3
+
+- Move the reveal above Gacha Studio's banner and loading screen. Previously the
+  hidden reveal could wait for clicks while "Establishing link" stayed visible.
+- Save the host's original selected rewards before starting the presentation,
+  while preserving its payment, RNG, pity, quantities, and stacking logic.
+- Await the host's actual Item creates and updates, including its unawaited
+  create call, and report write failures or inaccessible reward links.
+- Keep the anti-spam lock until presentation completes; playback or chat errors
+  after saved delivery do not grant duplicates or discard the saved rewards.
+- Retain the latest 20 selected pulls on the recipient Actor for GM review of
+  future failed deliveries. Earlier lost selections cannot be reconstructed.
+- Add delivery-order, failure, concurrency, preview, and history regression tests.
+
 ## 1.0.2
 
 - Fix Config clicks on the native form used by Gacha Studio's banner editor.
