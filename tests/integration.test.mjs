@@ -39,7 +39,9 @@ test("reward programmer extends existing rows without replacing the awarded Item
   class Config { _generateItemHTML(item) {return `<div class="pool-item-row" data-uuid="${item.uuid}"><span>${item.name}</span></div>`;} }
   const item = {name: "Welt Card", uuid: "Item.welt-card"}, before = structuredClone(item);
   installProgrammer(Config); const html = new Config()._generateItemHTML(item);
-  assert.match(html, /Choose corresponding character/); assert.match(html, /data-tgs-actor-drop/); assert.match(html, /Splash artwork/);
+  assert.match(html, /pool-item-row tgs-entry-configurable/);
+  assert.match(html, /<div class="tgs-entry-config-footer"><button[^>]+data-tgs-config[^>]*>.* Config<\/button><\/div><\/div>$/);
+  assert.doesNotMatch(html, /<details|data-tgs-field|data-tgs-actor-drop/);
   assert.match(html, /data-uuid="Item.welt-card"/); assert.deepEqual(item, before); assert.equal(installProgrammer(Config), false);
   assert.doesNotMatch(programmerHTML({name: '<img onerror="bad">'}), /<img onerror/);
 });

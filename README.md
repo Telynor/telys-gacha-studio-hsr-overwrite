@@ -9,8 +9,12 @@ The original Gacha Studio module must remain installed and enabled.
 Paste this URL into Foundry's **Install Module → Manifest URL**:
 
 ```text
-https://github.com/Telynor/telys-gacha-studio-hsr-overwrite/releases/latest/download/manifest.json
+https://raw.githubusercontent.com/Telynor/telys-gacha-studio-hsr-overwrite/main/manifest.json
 ```
+
+For version 1.0.1 and later, use the manifest URL above. The older GitHub release
+manifest still points to 1.0.0; reinstalling with the URL above switches Foundry
+to this update channel.
 
 Enable this module alongside Gacha Studio. Tely's Star Rail Ultimates is
 recommended for automatic character metadata and saved Path/element icons.
@@ -20,12 +24,20 @@ It is optional: the reward programmer also permits manually supplied metadata.
 
 1. Open the existing Gacha Studio banner manager and edit a banner.
 2. Add the **character-card Item that should be awarded** to its reward pool.
-3. Expand **HSR character reveal** beneath that reward.
+3. Click **Config** inside that reward's panel. Its settings open in a separate,
+   resizable window showing the exact reward Item being configured.
 4. Click **Choose corresponding character** and drag an Actor from the Actors
    sidebar or an Actor compendium into the drop area.
 5. The actor supplies its name, Path, element, icons, and splash artwork.
    Use **Upload / choose** to select or upload replacement art for this reward.
-6. Use **Preview this reward**, then **save the banner**.
+6. Use **Preview this reward**, click **Save changes**, then **save the banner**.
+   **Cancel** or closing the window discards its pending changes.
+
+The Config button stays inside the reward panel. Actor links and artwork fields
+are edited in the separate window, with enough space for their labels and image
+browsers. The Actors sidebar remains accessible while this window is open, so
+you can drag a character into it. Each entry has its own editor, including when
+the same Item appears more than once or in multiple banners.
 
 Each banner reward stores an independent Actor link and presentation snapshot.
 The Actor's UUID does not replace the reward Item's UUID. Drawing Welt displays
@@ -90,8 +102,9 @@ and does not copy or overwrite the host module's files. A world reload restores
 the original behavior when this extension is disabled.
 
 Run `npm test`, `npm run check`, and `npm run build` with Node.js and Python 3.
-Tests exercise metadata import, per-banner overrides, immutable reward delivery,
-single/ten-pull transitions, summary layout, and the host animation integration.
+Tests exercise metadata import, per-banner overrides, reward editor save/cancel,
+Actor drop and upload timing, immutable reward delivery, single/ten-pull
+transitions, summary layout, and the host animation integration.
 This release targets Foundry 14; a live Foundry world was not available during
 automated validation. Changes to the host's internal class names or file layout
 may require an integration update.
