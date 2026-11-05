@@ -1,4 +1,4 @@
-import {ID, HOST_ID, REVEAL_KEY, clamp, clone, escapeHTML, safeImage, setting} from "./constants.js";
+import {ID, HOST_ID, REVEAL_KEY, appElement, clamp, clone, escapeHTML, safeImage, setting} from "./constants.js";
 import {actorFromDrop, characterConfig, linkCharacter, unlinkCharacter} from "./character.js";
 
 const activeEditors = new WeakMap();
@@ -79,7 +79,7 @@ export async function openRewardEditor(app, {item, rarityId}, {preview, DialogCl
   };
   const render = (_event, dialog) => {
     record.dialog = dialog;
-    const element = dialog.element?.[0] || dialog.element;
+    const element = appElement(dialog);
     if (!element || element === root) return;
     root = element;
     const options = {signal: controller.signal};

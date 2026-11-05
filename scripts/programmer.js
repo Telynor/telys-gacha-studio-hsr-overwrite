@@ -1,4 +1,4 @@
-import {ID, escapeHTML} from "./constants.js";
+import {ID, appElement, escapeHTML} from "./constants.js";
 import {openRewardEditor} from "./reward-editor.js";
 
 const PATCH = Symbol.for(`${ID}.programmer`);
@@ -16,7 +16,7 @@ export function entryFor(app, target) {
 }
 
 export function attachProgrammer(app, {preview, openEditor = openRewardEditor} = {}) {
-  const root = app.element?.[0] || app.element;
+  const root = appElement(app);
   if (!root || attached.has(root) || globalThis.game?.user?.isGM === false) return;
   attached.add(root);
   root.addEventListener("click", event => {

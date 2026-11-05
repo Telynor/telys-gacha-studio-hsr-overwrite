@@ -18,3 +18,9 @@ export function setting(namespace, key, fallback) {
   try { return globalThis.game?.settings?.get(namespace, key) ?? fallback; } catch { return fallback; }
 }
 export function clone(value) { return globalThis.foundry?.utils?.deepClone?.(value) ?? structuredClone(value); }
+
+/** A native HTMLFormElement is indexed too: [0] is its first form control. */
+export function appElement(app) {
+  const element = app?.element;
+  return typeof element?.addEventListener === "function" ? element : element?.[0] ?? element;
+}

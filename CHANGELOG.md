@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.2
+
+- Fix Config clicks on the native form used by Gacha Studio's banner editor.
+  The click listener now attaches to the whole form instead of its first field.
+- Use the same native-element handling inside the reward editor so its fields,
+  artwork buttons, and Actor drop area bind to the correct window element.
+- Add regression coverage for indexed native forms, the render-to-Config-to-Save
+  flow, repeated rendering, and jQuery-wrapped application elements.
+
 ## 1.0.1
 
 - Replace the cramped inline character editor with a **Config** button inside

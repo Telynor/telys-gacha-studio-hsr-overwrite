@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {attachProgrammer, entryFor} from "../scripts/programmer.js";
+import {attachProgrammer, entryFor, installProgrammer} from "../scripts/programmer.js";
 import {applyRewardDraft, createRewardDraft, openRewardEditor, rewardEditorHTML} from "../scripts/reward-editor.js";
 
 const reward = () => ({entryId: "welt", uuid: "Item.welt-card", name: "Welt Character Card", qty: 2, reveal: {kind: "character", pathIcon: "legacy-path.png", telysHSR: {actorUuid: "Actor.Welt", snapshot: {name: "Welt", pathName: "Nihility", splashArt: "welt.png"}}}});
@@ -51,6 +51,9 @@ function editor(item = reward()) {
 
 test("Config opens the selected entry from the clicked panel, not another copy of its Item", async () => {
   const item = reward(), other = {...reward(), entryId: "other"}, root = new Root(); let received;
+  // Native HTMLFormElements expose indexed form controls, just like the host's
+  // top-level <form>. This is not a jQuery wrapper around the application.
+  root[0] = new Root();
   const row = {dataset: {entryId: "other"}, closest: () => ({dataset: {rarityId: "five"}})};
   const button = {closest: () => row}, target = {closest: () => button};
   const app = {element: root, _currentPoolData: {five: [item, other]}};
@@ -58,6 +61,48 @@ test("Config opens the selected entry from the clicked panel, not another copy o
   attachProgrammer(app, {openEditor: (parent, entry) => {received = {parent, entry};}});
   root.dispatch("click", target); await turn();
   assert.equal(received.parent, app); assert.equal(received.entry.item, other);
+});
+
+test("the rendered native host form routes Config to the entry editor once per click", async () => {
+  const before = globalThis.foundry, root = new Root(), dialogRoot = new Root();
+  root[0] = new Root(); dialogRoot[0] = new Root();
+  const item = reward(); let options, finish, calls = 0;
+  const DialogV2 = {wait(config) {
+    calls++; options = config;
+    config.render({}, {element: dialogRoot, bringToFront() {}});
+    return new Promise(resolve => {finish = resolve;});
+  }};
+  globalThis.foundry = {applications: {api: {DialogV2}}};
+  class Config {
+    element = root; targetBannerId = "banner-a"; _currentPoolData = {five: [item]};
+    _generateItemHTML() {return '<div class="pool-item-row"></div>';}
+    async _onRender() {}
+  }
+  try {
+    installProgrammer(Config);
+    const app = new Config();
+    await app._onRender(); await app._onRender();
+    const row = {dataset: {entryId: item.entryId}, closest: () => ({dataset: {rarityId: "five"}})};
+    const button = {closest: () => row}, icon = {closest: () => button};
+    root.dispatch("click", icon); await turn();
+    assert.equal(calls, 1); assert.equal(root.events.get("click").length, 1);
+    assert.equal(root[0].events.has("click"), false);
+    assert.equal(options.window.title, "Config — Welt Character Card");
+    assert.match(options.content, /Item.welt-card/);
+    dialogRoot.input("name", "Edited through the opened dialog");
+    await options.buttons.find(button => button.action === "save").callback();
+    assert.equal(item.reveal.telysHSR.overrides.name, "Edited through the opened dialog");
+    assert.equal(item.uuid, "Item.welt-card");
+  } finally {options?.close(); finish?.(null); await turn(); globalThis.foundry = before;}
+});
+
+test("a jQuery-wrapped host form still binds Config to the form", async () => {
+  const root = new Root(), item = reward(); root[0] = new Root(); let opened;
+  const row = {dataset: {entryId: item.entryId}, closest: () => ({dataset: {rarityId: "five"}})};
+  const app = {element: {0: root}, _currentPoolData: {five: [item]}};
+  attachProgrammer(app, {openEditor: (_app, entry) => {opened = entry.item;}});
+  root.dispatch("click", {closest: () => ({closest: () => row})}); await turn();
+  assert.equal(opened, item); assert.equal(root[0].events.has("click"), false);
 });
 
 test("separate editor identifies the Item and keeps Actor sidebar accessible for drops", async () => {
