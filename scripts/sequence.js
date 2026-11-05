@@ -46,6 +46,18 @@ export function paintRing(context, width, height, age, stars, dpr = 1) {
   context.lineWidth = 2 * unit; context.strokeStyle = "rgba(255,247,224,.9)"; context.stroke(); context.restore();
 }
 
+export function paintRarityFlash(context, width, height, age, stars, dpr = 1) {
+  if (age <= 0 || age >= 420) return;
+  const color = COLORS[stars] || COLORS[3];
+  const opacity = smooth(age / 55) * (1 - smooth((age - 75) / 345)) * .68;
+  context.save(); context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const flash = context.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, Math.hypot(width, height) * .6);
+  flash.addColorStop(0, `rgba(${color.join(',')},${opacity})`);
+  flash.addColorStop(.35, `rgba(${color.join(',')},${opacity * .6})`);
+  flash.addColorStop(1, `rgba(${color.join(',')},0)`);
+  context.fillStyle = flash; context.fillRect(0, 0, width, height); context.restore();
+}
+
 export function paintNameplate(context, width, height, time, visual, images, star) {
   const opacity = smooth((time - backgroundAt(visual.stars)) / 360);
   if (opacity <= 0) return;
@@ -85,12 +97,7 @@ export function paintArt(context, width, height, age, visual, image, dpr) {
   const fit = Math.min(width * .94 / image.boundsWidth, height * (visual.kind === "character" ? 1.55 : .86) / image.boundsHeight);
   const scale = fit * (.96 + .04 * ease(age / 650)) * (visual.artScale || 100) / 100;
   context.save(); context.setTransform(dpr, 0, 0, dpr, width / 2 * dpr, height / 2 * dpr); context.globalAlpha = smooth(age / 360);
-  if (visual.kind === "lightCone") {
-    context.rotate(.085);
-    const w = image.boundsWidth * scale, h = image.boundsHeight * scale;
-    context.lineWidth = 1; context.strokeStyle = "rgba(230,237,250,.55)";
-    context.strokeRect(-w / 2 - 6, -h / 2 + 6, w, h); context.strokeRect(-w / 2 - 11, -h / 2 + 12, w, h);
-  }
+  if (visual.kind === "lightCone") context.rotate(.085);
   drawAnchored(context, image, 0, 0, scale); context.restore();
 }
 
@@ -113,12 +120,12 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
     const counter = overlay.querySelector(".tgs-counter"), hint = overlay.querySelector(".tgs-hint"), announcement = overlay.querySelector(".tgs-announcement");
     const summary = overlay.querySelector(".tgs-summary"), rows = overlay.querySelector(".tgs-summary-rows");
     const controller = new AbortController(), state = newSequence(visuals);
-    let width = 736, height = 414, dpr = 1, raf = 0, started = null, bgStarted = false, auraFailed = false, finished = false, openingNow = false, bgm;
+    let width = 736, height = 414, dpr = 1, raf = 0, started = null, bgStarted = false, auraFailed = false, auraVersion = 0, finished = false, openingNow = false, bgm;
     const reduced = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     const current = () => visuals[state.index];
     const sound = src => {if (src) try {playSFX(src, .7);} catch { /* Audio never blocks delivery. */ }};
     const finish = () => {
-      if (finished) return; finished = true; controller.abort(); cancelAnimationFrame(raf); observer?.disconnect();
+      if (finished) return; finished = true; auraVersion++; controller.abort(); cancelAnimationFrame(raf); observer?.disconnect();
       for (const media of [aura, openingVideo, bgm].filter(Boolean)) {media.pause(); media.removeAttribute("src"); media.load?.();}
       overlay.remove(); document.body.style.overflow = previousOverflow;
       if (priorFocus?.isConnected) priorFocus.focus?.();
@@ -132,6 +139,7 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
       if (state.time < backgroundAt(visual.stars)) {if (visual.stars === 5) paintIntro(context, width, height, state.time, star, images[state.index].path, dpr); return;}
       const age = state.time - backgroundAt(visual.stars);
       if (auraFailed) paintRing(context, width, height, age, visual.stars, dpr);
+      if (!reduced) paintRarityFlash(context, width, height, age, visual.stars, dpr);
       paintArt(context, width, height, age, visual, images[state.index].art, dpr);
       paintNameplate(context, width, height, state.time, visual, images[state.index], star);
     }
@@ -144,10 +152,22 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
     const observer = typeof ResizeObserver === "function" ? new ResizeObserver(resize) : null;
     observer?.observe(overlay); window.addEventListener("resize", resize, {signal: controller.signal}); resize();
     function startAura(visual) {
-      bgStarted = true; auraFailed = false; aura.style.opacity = "1";
-      aura.src = asset(`aura-${visual.stars === 5 ? "gold" : visual.stars === 4 ? "purple" : "blue"}.mp4`);
-      aura.playbackRate = speed;
-      try {aura.play()?.catch(() => {if (current() === visual) {auraFailed = true; aura.style.opacity = "0"; draw();}});}
+      const version = ++auraVersion;
+      bgStarted = true; auraFailed = true; aura.style.opacity = "0";
+      try {
+        aura.src = asset(`aura-${visual.stars === 5 ? "gold" : visual.stars === 4 ? "purple" : "blue"}.mp4`);
+        // Restart even when the next reward uses the same rarity clip.
+        aura.load?.(); aura.currentTime = 0; aura.playbackRate = speed;
+        Promise.resolve(aura.play()).then(() => {
+          if (finished || version !== auraVersion || current() !== visual) return;
+          // The Canvas flash/ring covers video startup; a late clip joins that clock.
+          aura.currentTime = Math.max(0, (state.time - backgroundAt(visual.stars)) / 1000);
+          auraFailed = false; aura.style.opacity = "1"; draw();
+        }).catch(() => {
+          if (finished || version !== auraVersion || current() !== visual) return;
+          auraFailed = true; aura.style.opacity = "0"; draw();
+        });
+      }
       catch {auraFailed = true; aura.style.opacity = "0";}
     }
     function renderAt(time) {
@@ -166,7 +186,7 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
       }
     }
     function startReward() {
-      cancelAnimationFrame(raf); aura.pause(); aura.style.opacity = "0"; bgStarted = false; started = null;
+      cancelAnimationFrame(raf); auraVersion++; aura.pause(); aura.style.opacity = "0"; bgStarted = false; started = null;
       const visual = current();
       if (!visual) return finish();
       overlay.style.setProperty("--tgs-reward-color", `rgb(${(COLORS[visual.stars] || COLORS[3]).join(',')})`);
@@ -174,7 +194,17 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
       sound(visual.stars === 5 ? banner.audio?.sfxSSR : banner.audio?.sfxFlip);
       if (reduced) {state.time = readyAt(visual.stars); bgStarted = true; auraFailed = true; renderAt(state.time); return;}
       renderAt(0);
-      const tick = now => {if (finished) return; try {started ??= now; renderAt((now - started) * speed); if (state.phase !== "holding") raf = requestAnimationFrame(tick);} catch (error) {console.error(`${ID} | Animation frame failed`, error); finish();}};
+      const tick = now => {
+        if (finished) return;
+        try {
+          started ??= now;
+          let time = (now - started) * speed;
+          // A throttled frame must not jump over the entire rarity flash.
+          if (!bgStarted && time > backgroundAt(visual.stars) + 100) {time = backgroundAt(visual.stars); started = now - time / speed;}
+          renderAt(time);
+          if (state.phase !== "holding") raf = requestAnimationFrame(tick);
+        } catch (error) {console.error(`${ID} | Animation frame failed`, error); finish();}
+      };
       raf = requestAnimationFrame(tick);
     }
     function showSummary() {

@@ -59,8 +59,11 @@ per-reward splash override. The source Actor is never modified.
   height. The Path and central star arrive together, then shrink and fade.
 - The splash appears over the supplied starfield and expanding rarity aura:
   gold for 5★, purple for 4★, blue for 3★.
+- A matching rarity flash runs on the reveal clock, including while the aura
+  video loads. Consecutive rewards restart their aura from the beginning.
 - Characters use full, unframed splash art with their name, element icon,
   star count, and Path label. Light Cones use their linked reward Item's art.
+  Their supplied artwork and icon borders are preserved without extra outlines.
 - Every reward holds until one click, Enter, Space, or Escape advances it.
 - Singles close after their reward. Only a ten-pull shows the angled,
   staggered **3–4–3** summary. Click that screen to close it.

@@ -31,18 +31,20 @@ class Element {
 }
 const noop = () => {};
 class Canvas extends Element {
-  constructor() {super("canvas"); this.width = 736; this.height = 414;}
-  getContext() {return {
+  constructor() {super("canvas"); this.width = 736; this.height = 414; this.gradients = [];}
+  getContext() {return this.context ||= {
     save: noop, restore: noop, setTransform: noop, clearRect: noop, fillRect: noop, drawImage: noop,
     beginPath: noop, moveTo: noop, lineTo: noop, stroke: noop, arc: noop, rotate: noop, strokeRect: noop, fillText: noop,
-    createLinearGradient: () => ({addColorStop: noop}), createRadialGradient: () => ({addColorStop: noop}),
+    createLinearGradient: () => ({addColorStop: noop}), createRadialGradient: () => {
+      const stops = []; this.gradients.push(stops); return {addColorStop: (offset, color) => stops.push({offset, color})};
+    },
     measureText: text => ({width: String(text).length * 8}), getImageData: () => ({data: new Uint8ClampedArray(this.width * this.height * 4).fill(255)}), putImageData: noop,
     globalAlpha: 1,
   };}
 }
 class Media extends Element {
-  constructor(tag = "audio") {super(tag); this.readyState = 2; this.currentTime = 0;}
-  play() {return Promise.resolve();} pause() {} load() {}
+  constructor(tag = "audio") {super(tag); this.readyState = 2; this.currentTime = 0; this.loads = 0;}
+  play() {return Promise.resolve();} pause() {} load() {this.loads++; this.currentTime = 0;}
 }
 function browser(reduced = false) {
   const prior = new Map();
@@ -119,5 +121,59 @@ test("reduced motion shows a held reward immediately", async () => {
     const results = [{item: {uuid: "Item.character"}, rarity: {stars: 5}}], done = playSequence(results, [visual(5)], {});
     const root = await mounted(env); assert.equal(root.querySelector(".tgs-hint").hidden, false);
     root.dispatch("keydown", {key: "Enter", repeat: false}); assert.equal(await done, results);
+  } finally {env.restore();}
+});
+
+test("a four-star purple flash is drawn while its aura video is still loading", async () => {
+  const env = browser();
+  try {
+    const done = playSequence([{item: {uuid: "Item.four"}}], [visual(4)], {});
+    const root = await mounted(env), aura = root.querySelector(".tgs-aura"), frame = root.querySelector(".tgs-frame");
+    aura.play = () => new Promise(() => {});
+    hold(env, root);
+    assert.match(aura.src, /aura-purple\.mp4$/); assert.equal(aura.style.opacity, "0");
+    assert(frame.gradients.some(stops => stops.some(stop => /^rgba\(189,133,255,0\.[1-9]/.test(stop.color))), "The purple flash must render before the video starts.");
+    root.dispatch("click"); await done;
+  } finally {env.restore();}
+});
+
+test("consecutive four-star rewards restart the purple aura instead of retaining its old position", async () => {
+  const env = browser();
+  try {
+    const done = playSequence([{}, {}], [visual(4, 0), visual(4, 1)], {});
+    const root = await mounted(env), aura = root.querySelector(".tgs-aura"), frame = root.querySelector(".tgs-frame");
+    hold(env, root); await new Promise(resolve => setImmediate(resolve));
+    aura.currentTime = 7; frame.gradients = [];
+    root.dispatch("click"); hold(env, root);
+    assert.equal(aura.loads, 2); assert(aura.currentTime < 1.5);
+    assert(frame.gradients.some(stops => stops.some(stop => /^rgba\(189,133,255,0\.[1-9]/.test(stop.color))));
+    root.dispatch("click"); await done;
+  } finally {env.restore();}
+});
+
+test("an aborted older aura playback cannot hide the next reward's aura", async () => {
+  const env = browser();
+  try {
+    const done = playSequence([{}, {}], [visual(4, 0), visual(3, 1)], {});
+    const root = await mounted(env), aura = root.querySelector(".tgs-aura"), pending = [];
+    aura.play = () => new Promise((resolve, reject) => pending.push({resolve, reject}));
+    hold(env, root); root.dispatch("click"); hold(env, root); assert.equal(pending.length, 2);
+    pending[1].resolve(); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(aura.style.opacity, "1"); assert.match(aura.src, /aura-blue\.mp4$/);
+    pending[0].reject(new Error("Previous load aborted")); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(aura.style.opacity, "1"); root.dispatch("click"); await done;
+  } finally {env.restore();}
+});
+
+test("a throttled frame cannot jump directly past the four-star flash", async () => {
+  const env = browser();
+  try {
+    const done = playSequence([{}], [visual(4)], {});
+    const root = await mounted(env), frame = root.querySelector(".tgs-frame");
+    env.tick(10); env.tick(5000);
+    assert.equal(root.querySelector(".tgs-hint").hidden, true);
+    env.tick(75);
+    assert(frame.gradients.some(stops => stops.some(stop => /^rgba\(189,133,255,0\.[1-9]/.test(stop.color))));
+    hold(env, root); root.dispatch("click"); await done;
   } finally {env.restore();}
 });

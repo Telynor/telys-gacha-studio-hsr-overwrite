@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.5
+
+- Remove the extra rectangular outlines drawn around Light Cone art. The linked
+  Item artwork, its existing borders, and the Path/element icons are preserved.
+- Add a timeline-driven rarity flash: purple for four-star rewards, gold for
+  five-star rewards, and blue for three-star rewards, behind the splash art.
+- Restart aura clips for every reward, including consecutive rewards of the
+  same rarity, and keep the procedural ring active while a clip is loading.
+- Align late-starting aura videos with the reveal clock and ignore cancelled
+  playback callbacks from earlier rewards.
+- Preserve the rarity flash when a throttled frame crosses the reveal boundary.
+
 ## 1.0.4
 
 - Verify that inventory writes return every expected saved Item. Empty or partial
