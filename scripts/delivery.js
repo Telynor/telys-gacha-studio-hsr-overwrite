@@ -16,6 +16,7 @@ async function recordPull(context, status, error) {
     history.push({
       id: context.id, at: context.at, userId: globalThis.game?.user?.id || "",
       bannerId: context.bannerId, rollType: context.rollType, status,
+      savedItemIds: context.savedItemIds || [],
       rewards: context.presentation.results.filter(result => !result.error).map(result => ({
         uuid: String(result.item?.uuid || ""), name: String(result.item?.name || "Reward"),
         qty: Number(result.item?.qty) || 1, rarityId: String(result.rarity?.id || ""),
@@ -49,7 +50,7 @@ export function installDeliveryBeforeReveal(Roller, AnimationClass, {enabled = (
 
   Roller._deliverItems = async function(actor, results) {
     if (!active || active.actor !== actor) return deliver.call(this, actor, results);
-    const context = active, writes = [];
+    const context = active, writes = [], expectedCounts = [];
     // Refuse silent partial delivery when a linked reward Item is inaccessible.
     for (const result of results.filter(result => !result.error)) {
       const source = await globalThis.fromUuid?.(result.item?.uuid);
@@ -62,15 +63,21 @@ export function installDeliveryBeforeReveal(Roller, AnimationClass, {enabled = (
       if (["createEmbeddedDocuments", "updateEmbeddedDocuments"].includes(key)) return (...args) => {
         let operation;
         try {operation = Promise.resolve(value.apply(target, args));} catch (error) {operation = Promise.reject(error);}
-        writes.push(operation); operation.catch(() => {}); return operation;
+        writes.push(operation); expectedCounts.push(Array.isArray(args[1]) ? args[1].length : 0);
+        operation.catch(() => {}); return operation;
       };
       return typeof value === "function" ? value.bind(target) : value;
     }});
     let error, result;
     try {result = await deliver.call(this, recipient, results);} catch (caught) {error = caught;}
     const outcomes = await Promise.allSettled(writes);
+    context.savedItemIds = [...new Set(outcomes.flatMap(outcome => outcome.status === "fulfilled" && Array.isArray(outcome.value)
+      ? outcome.value.map(item => item?.id || item?._id).filter(Boolean) : []))];
     const failed = outcomes.find(outcome => outcome.status === "rejected");
     if (error || failed) throw error || failed.reason;
+    if (outcomes.some((outcome, index) => !Array.isArray(outcome.value) || outcome.value.length !== expectedCounts[index])) {
+      throw new Error("Gacha inventory save did not confirm every reward Item. An inventory hook or validation may have blocked creation; review the recipient's inventory before repairing the pull.");
+    }
     if (results.some(result => !result.error) && !writes.length) throw new Error("Gacha Studio did not create or update any reward Items.");
     context.delivered = true;
     await recordPull(context, "delivered");

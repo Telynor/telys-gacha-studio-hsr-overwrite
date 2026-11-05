@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.4
+
+- Verify that inventory writes return every expected saved Item. Empty or partial
+  results from creation hooks now produce a recorded delivery failure.
+- Include confirmed Item IDs in pull history so a GM can review partial delivery
+  before repairing it without granting another copy of already saved rewards.
+
 ## 1.0.3
 
 - Move the reveal above Gacha Studio's banner and loading screen. Previously the

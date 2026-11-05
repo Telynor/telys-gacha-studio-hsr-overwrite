@@ -76,6 +76,27 @@ test("inaccessible reward links are reported instead of being silently skipped",
   } finally {env.restore();}
 });
 
+test("an inventory hook cancelling creation is not recorded as successful delivery", async () => {
+  const env = fixture();
+  env.actor.createEmbeddedDocuments = async () => [];
+  try {
+    await assert.rejects(env.Roller.performRoll("banner-a", "single", env.actor), /did not confirm every reward/);
+    assert.equal(getPullHistory(env.actor)[0].status, "delivery-failed"); assert(!env.events.includes("reveal"));
+  } finally {env.restore();}
+});
+
+test("partial delivery retains confirmed Item IDs for GM review without granting a second copy", async () => {
+  const env = fixture();
+  env.results.push({item: {uuid: "Item.second", name: "Second Card", qty: 1}, rarity: {id: "four", stars: 4}});
+  env.actor.createEmbeddedDocuments = async () => [{id: "saved-first-card"}];
+  try {
+    await assert.rejects(env.Roller.performRoll("banner-a", "multi", env.actor), /did not confirm every reward/);
+    const failed = getPullHistory(env.actor)[0]; assert.equal(failed.rewards.length, 2);
+    assert.equal(failed.status, "delivery-failed"); assert.deepEqual(failed.savedItemIds, ["saved-first-card"]);
+    assert.equal(env.events.filter(event => event === "paid").length, 1); assert(!env.events.includes("reveal"));
+  } finally {env.restore();}
+});
+
 test("stacked inventory updates finish before the reveal too", async () => {
   const saving = gate(), env = fixture({update: true, save: () => saving.promise});
   try {
@@ -100,7 +121,7 @@ test("a concurrent preview of the same banner is shown without capturing it as a
 test("concurrent commits keep their own recipients and do not wait for another pull's playback", async () => {
   const viewing = gate(), env = fixture({present: () => viewing.promise});
   const otherFlags = new Map(), otherInventory = [];
-  const other = {getFlag: (_ns, key) => otherFlags.get(key), setFlag: async (_ns, key, value) => otherFlags.set(key, value), createEmbeddedDocuments: async (_type, items) => otherInventory.push(...items)};
+  const other = {getFlag: (_ns, key) => otherFlags.get(key), setFlag: async (_ns, key, value) => otherFlags.set(key, value), createEmbeddedDocuments: async (_type, items) => {otherInventory.push(...items); return items;}};
   try {
     const first = env.Roller.performRoll("banner-a", "single", env.actor);
     const second = env.Roller.performRoll("banner-a", "single", other);
