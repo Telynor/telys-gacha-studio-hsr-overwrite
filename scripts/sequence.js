@@ -4,6 +4,7 @@ import {newSequence, seekSequence, advanceSequence, skipTenPull, backgroundAt, r
 import {videoCache as browserVideoCache} from "./video-cache.js";
 import {auraSource, prepareSequenceVideos} from "./video-preload.js";
 import {portraitStyle} from "./portrait-layout.js";
+import {waitForVideoReady, reduceBackgroundRendering, monitorCinematic} from "./video-playback.js";
 
 const fitted = (context, value, max) => {
   const letters = Array.from(String(value || ""));
@@ -122,20 +123,27 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
       const priorFocus = document.activeElement, previousOverflow = document.body.style.overflow;
       const overlay = document.createElement("div"); overlay.id = "tgs-hsr-overlay"; overlay.className = "tgs-hsr-overlay";
       overlay.setAttribute("role", "dialog"); overlay.setAttribute("aria-modal", "true"); overlay.setAttribute("aria-label", "Warp reward reveal"); overlay.tabIndex = -1;
-      overlay.innerHTML = `<img class="tgs-starfield" src="${asset("starfield.png")}" alt=""><video class="tgs-aura" muted playsinline preload="auto" aria-hidden="true"></video><video class="tgs-opening" playsinline preload="auto" hidden></video><canvas class="tgs-frame" aria-hidden="true"></canvas><span class="tgs-counter"></span><span class="tgs-hint" hidden>Click anywhere to continue</span><span class="tgs-announcement" aria-live="polite"></span><button type="button" class="tgs-skip-opening" hidden>Skip opening</button><button type="button" class="tgs-skip-ten" aria-label="Skip ten-pull animations; five-star reveals still play" title="Keep five-star reveals and show all ten rewards" hidden>Skip</button><div class="tgs-summary" hidden><h2>Warp Result</h2><div class="tgs-summary-rows"></div><button type="button" class="tgs-close-summary" aria-label="Close warp results">×</button></div>`;
+      overlay.innerHTML = `<img class="tgs-starfield" src="${asset("starfield.png")}" alt=""><video class="tgs-aura" muted playsinline preload="auto" aria-hidden="true"></video><video class="tgs-opening" playsinline preload="auto" hidden></video><canvas class="tgs-frame" aria-hidden="true"></canvas><span class="tgs-counter"></span><span class="tgs-hint" hidden>Click anywhere to continue</span><span class="tgs-cinematic-status" role="status" hidden>Preparing cinematic…</span><span class="tgs-announcement" aria-live="polite"></span><button type="button" class="tgs-skip-opening" hidden>Skip opening</button><button type="button" class="tgs-skip-ten" aria-label="Skip ten-pull animations; five-star reveals still play" title="Keep five-star reveals and show all ten rewards" hidden>Skip</button><div class="tgs-summary" hidden><h2>Warp Result</h2><div class="tgs-summary-rows"></div><button type="button" class="tgs-close-summary" aria-label="Close warp results">×</button></div>`;
       document.body.append(overlay); document.body.style.overflow = "hidden";
       const frame = overlay.querySelector(".tgs-frame"), context = frame.getContext("2d"), field = overlay.querySelector(".tgs-starfield");
       const aura = overlay.querySelector(".tgs-aura"), openingVideo = overlay.querySelector(".tgs-opening"), skip = overlay.querySelector(".tgs-skip-opening");
       const skipTen = overlay.querySelector(".tgs-skip-ten");
+      const cinematicStatus = overlay.querySelector(".tgs-cinematic-status");
       const counter = overlay.querySelector(".tgs-counter"), hint = overlay.querySelector(".tgs-hint"), announcement = overlay.querySelector(".tgs-announcement");
       const summary = overlay.querySelector(".tgs-summary"), rows = overlay.querySelector(".tgs-summary-rows");
       const controller = new AbortController(), state = newSequence(visuals);
       skipTen.hidden = !hasSummary(state);
       let width = 736, height = 414, dpr = 1, raf = 0, started = null, bgStarted = false, auraFailed = false, auraVersion = 0, finished = false, openingNow = false, bgm;
+      let openingController, openingMonitor, backgroundRendering;
       const current = () => visuals[state.index];
       const sound = src => {if (src) try {playSFX(src, .7);} catch { /* Audio never blocks delivery. */ }};
+      function stopOpening(reason) {
+        openingController?.abort(); backgroundRendering?.restore(); openingMonitor?.finish(reason);
+        openingController = null; openingMonitor = null; backgroundRendering = null; cinematicStatus.hidden = true;
+      }
       const finish = () => {
         if (finished) return; finished = true; auraVersion++; controller.abort(); cancelAnimationFrame(raf); observer?.disconnect();
+        stopOpening("closed");
         for (const media of [aura, openingVideo, bgm].filter(Boolean)) {media.pause(); media.removeAttribute("src"); media.load?.();}
         overlay.remove(); document.body.style.overflow = previousOverflow;
         if (priorFocus?.isConnected) priorFocus.focus?.();
@@ -155,7 +163,7 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
       }
       const resize = () => {
         const rect = overlay.getBoundingClientRect(); if (!rect.width || !rect.height) return;
-        width = rect.width; height = rect.height; dpr = Math.max(1, window.devicePixelRatio || 1);
+        width = rect.width; height = rect.height; dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
         frame.width = Math.round(width * dpr); frame.height = Math.round(height * dpr);
         rows.style.setProperty("--tgs-grid-width", `${Math.min(width * .85, (height - 66) / .66)}px`); draw();
       };
@@ -248,18 +256,19 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
       overlay.querySelector(".tgs-close-summary").addEventListener("click", event => {event.stopPropagation(); finish();}, {signal: controller.signal});
       overlay.addEventListener("keydown", event => {
         if (event.target?.tagName === "BUTTON" && event.key !== "Escape") return;
-        if (["Enter", " ", "Escape"].includes(event.key) && !event.repeat) {event.preventDefault(); if (openingNow) finishOpening(); else advance();}
+        if (["Enter", " ", "Escape"].includes(event.key) && !event.repeat) {event.preventDefault(); if (openingNow) finishOpening("skipped"); else advance();}
       }, {signal: controller.signal});
       aura.addEventListener("error", () => {auraFailed = true; aura.style.opacity = "0"; draw();}, {signal: controller.signal});
       aura.addEventListener("ended", () => {aura.style.opacity = "0";}, {signal: controller.signal});
       let openingFinished = false;
-      function finishOpening() {
+      function finishOpening(reason = "ended") {
         if (openingFinished || finished) return; openingFinished = true; openingNow = false;
+        stopOpening(reason);
         openingVideo.pause(); openingVideo.hidden = true; skip.hidden = true;
         if (banner.audio?.bgmAnim) {bgm = new Audio(banner.audio.bgmAnim); bgm.loop = true; bgm.volume = .35; bgm.play()?.catch(() => {});}
         presentState();
       }
-      skip.addEventListener("click", event => {event.stopPropagation(); finishOpening();}, {signal: controller.signal});
+      skip.addEventListener("click", event => {event.stopPropagation(); finishOpening("skipped");}, {signal: controller.signal});
       skipTen.addEventListener("click", event => {
         event.stopPropagation();
         if (finished) return;
@@ -267,17 +276,31 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
         if (!skipTenPull(state)) return;
         skipTen.hidden = true; overlay.focus();
         try {
-          if (openingNow) finishOpening();
+          if (openingNow) finishOpening("ten-pull-skip");
           else if (state.phase === "summary") showSummary();
           else if (state.index !== previousIndex) startReward();
           else renderAt(state.time); // A five-star already on screen keeps its animation clock.
         } catch (error) {console.error(`${ID} | Ten-pull skip failed`, error); finish();}
       }, {signal: controller.signal});
-      openingVideo.addEventListener("ended", finishOpening, {signal: controller.signal}); openingVideo.addEventListener("error", finishOpening, {signal: controller.signal});
+      openingVideo.addEventListener("ended", () => finishOpening("ended"), {signal: controller.signal}); openingVideo.addEventListener("error", () => finishOpening("media-error"), {signal: controller.signal});
       const openingSrc = videos.opening;
       overlay.focus();
-      if (openingSrc && !reduced) {openingNow = true; openingVideo.hidden = false; skip.hidden = hasSummary(state); openingVideo.src = openingSrc; openingVideo.load?.(); openingVideo.play()?.catch(finishOpening);}
-      else finishOpening();
+      if (openingSrc && !reduced) {
+        openingNow = true; openingVideo.hidden = false; skip.hidden = hasSummary(state); cinematicStatus.hidden = false;
+        backgroundRendering = reduceBackgroundRendering();
+        const preparation = new AbortController(); openingController = preparation;
+        openingVideo.src = openingSrc; openingVideo.load?.();
+        openingMonitor = monitorCinematic(openingVideo, {bytes: videos.openingBytes, preloaded: videos.preloaded, backgroundFPS: backgroundRendering.backgroundFPS});
+        waitForVideoReady(openingVideo, {signal: preparation.signal}).then(() => {
+          if (finished || openingFinished) return;
+          openingMonitor?.ready(); cinematicStatus.hidden = true;
+          return openingVideo.play();
+        }).catch(error => {
+          if (preparation.signal.aborted || finished || openingFinished) return;
+          console.warn(`${ID} | Cinematic playback could not start`, error);
+          finishOpening("startup-error");
+        });
+      } else finishOpening("none");
     });
   } finally {videos.release();}
 }

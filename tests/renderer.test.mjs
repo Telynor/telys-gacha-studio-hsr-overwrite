@@ -14,6 +14,7 @@ class Element {
     this.markup = html;
     for (const match of html.matchAll(/<([\w-]+)\b([^>]*?\bclass="([^"]+)"[^>]*)>/g)) {
       const node = match[1] === "canvas" ? new Canvas() : match[1] === "video" ? new Media("video") : new Element(match[1]);
+      if (match[3].split(/\s+/).includes("tgs-opening")) node.readyState = Media.openingReadyState;
       node.hidden = /\bhidden\b/.test(match[2]);
       for (const name of match[3].split(/\s+/)) this.map['.' + name] = node;
     }
@@ -27,6 +28,7 @@ class Element {
   getBoundingClientRect() {return {width: 736, height: 414};}
   focus() {}
   addEventListener(type, fn, options = {}) {(this.events[type] ||= []).push({fn, options});}
+  removeEventListener(type, fn) {this.events[type] = (this.events[type] || []).filter(listener => listener.fn !== fn);}
   dispatch(type, detail = {}) {
     const event = {target: this, stopPropagation() {}, preventDefault() {}, ...detail};
     for (const listener of [...this.events[type] || []]) if (!listener.options.signal?.aborted) listener.fn(event);
@@ -46,11 +48,13 @@ class Canvas extends Element {
   };}
 }
 class Media extends Element {
+  static openingReadyState = 4;
   constructor(tag = "audio") {super(tag); this.readyState = 2; this.currentTime = 0; this.loads = 0;}
   play() {return Promise.resolve();} pause() {} load() {this.loads++; this.currentTime = 0;}
 }
 let testVideoCache;
-function browser(reduced = false) {
+function browser(reduced = false, {openingReadyState = 4} = {}) {
+  Media.openingReadyState = openingReadyState;
   testVideoCache = {acquire: async (src, {onProgress}) => {onProgress?.({loaded: 1, total: 1}); return {url: `blob:buffered/${src}`, release() {}};}};
   const prior = new Map();
   const set = (key, value) => {prior.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, {value, configurable: true, writable: true});};
@@ -327,5 +331,60 @@ test("Skip keeps reduced-motion five-star rewards held until clicked", async () 
     assert.equal(root.querySelector(".tgs-hint").hidden, false); assert.match(root.querySelector(".tgs-announcement").textContent, /^Reward 3\./);
     assert.equal(root.querySelector(".tgs-summary").hidden, true); assert.equal(env.pendingFrames(), 0);
     root.dispatch("click"); assertFullSummary(root, visuals); root.dispatch("click"); assert.equal(await done, results);
+  } finally {env.restore();}
+});
+
+test("a fully downloaded cinematic waits for decoded future frames and restores background FPS when it ends", async () => {
+  const env = browser(false, {openingReadyState: 2}), prior = globalThis.canvas, ticker = {maxFPS: 60, minFPS: 10, started: true};
+  globalThis.canvas = {app: {ticker}};
+  try {
+    const results = [{}], done = playSequence(results, [visual(5)], {animation: {type: "video", videoSSR: "train-gold.mp4"}});
+    const root = await mounted(env), opening = root.querySelector(".tgs-opening"); let plays = 0;
+    opening.play = () => {plays++; return Promise.resolve();};
+    assert.equal(plays, 0); assert.equal(ticker.maxFPS, 15); assert.equal(ticker.started, true);
+    assert.equal(root.querySelector(".tgs-cinematic-status").hidden, false);
+    opening.dispatch("loadeddata"); await new Promise(resolve => setImmediate(resolve)); assert.equal(plays, 0);
+    opening.readyState = 3; opening.dispatch("canplay"); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(plays, 1); assert.equal(root.querySelector(".tgs-cinematic-status").hidden, true);
+    opening.dispatch("ended"); assert.equal(ticker.maxFPS, 60); assert.equal(ticker.started, true);
+    hold(env, root); root.dispatch("click"); assert.equal(await done, results);
+  } finally {globalThis.canvas = prior; env.restore();}
+});
+
+test("ten-pull Skip during decoder preparation restores rendering and cannot start a stale cinematic", async () => {
+  const env = browser(false, {openingReadyState: 2}), prior = globalThis.canvas, ticker = {maxFPS: 0, minFPS: 10};
+  globalThis.canvas = {app: {ticker}};
+  try {
+    const {results, visuals} = tenPull([3, 4, 3, 5, 3, 3, 3, 3, 3, 3]);
+    const done = playSequence(results, visuals, {animation: {type: "video", videoSSR: "train-gold.mp4"}});
+    const root = await mounted(env), opening = root.querySelector(".tgs-opening"); let plays = 0;
+    opening.play = () => {plays++; return Promise.resolve();};
+    assert.equal(ticker.maxFPS, 15); root.querySelector(".tgs-skip-ten").dispatch("click"); assert.equal(ticker.maxFPS, 0);
+    opening.readyState = 4; opening.dispatch("canplaythrough"); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(plays, 0); assert.equal(root.querySelector(".tgs-cinematic-status").hidden, true);
+    hold(env, root); assert.match(root.querySelector(".tgs-announcement").textContent, /^Reward 3\./);
+    root.dispatch("click"); assertFullSummary(root, visuals); root.dispatch("click"); assert.equal(await done, results);
+  } finally {globalThis.canvas = prior; env.restore();}
+});
+
+test("a cinematic startup failure restores scene rendering and continues to the saved reward reveal", async () => {
+  const env = browser(false, {openingReadyState: 2}), prior = globalThis.canvas, ticker = {maxFPS: 30, minFPS: 10};
+  globalThis.canvas = {app: {ticker}};
+  try {
+    const results = [{}], done = playSequence(results, [visual(5)], {animation: {type: "video", videoSSR: "train-gold.mp4"}});
+    const root = await mounted(env), opening = root.querySelector(".tgs-opening");
+    opening.play = () => Promise.reject(new Error("Decoder startup failed"));
+    opening.readyState = 4; opening.dispatch("canplaythrough"); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(ticker.maxFPS, 30); assert.equal(opening.hidden, true);
+    hold(env, root); root.dispatch("click"); assert.equal(await done, results);
+  } finally {globalThis.canvas = prior; env.restore();}
+});
+
+test("high-DPI reveal canvases cap their pixel density while retaining viewport layout", async () => {
+  const env = browser(); window.devicePixelRatio = 4;
+  try {
+    const done = playSequence([{}], [visual(5)], {}), root = await mounted(env), frame = root.querySelector(".tgs-frame");
+    assert.equal(frame.width, 736 * 2); assert.equal(frame.height, 414 * 2);
+    hold(env, root); root.dispatch("click"); await done;
   } finally {env.restore();}
 });

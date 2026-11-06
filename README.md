@@ -158,6 +158,32 @@ browser to use the previous URL playback. Buffering avoids network stalls during
 playback; video decoding still depends on the player's device. Reduced-motion
 preferences omit video downloads and playback.
 
+The actual opening video element now waits until the browser has decoded future
+frames before playback starts. **Preparing cinematic** covers that startup; the
+Skip controls remain available. Decoder errors or a 15-second startup timeout
+continue to the saved reward reveals instead of hanging the pull.
+
+**Reduce scene rendering during cinematics** is enabled by default for each
+browser. While the opening is preparing/playing, it temporarily caps the hidden
+tabletop's rendering at 15 FPS (or its configured minimum if higher) and pauses
+running banner CSS/Web Animations. It restores the previous rendering and
+animations when the cinematic ends, fails, is skipped, or closes. It does not
+pause the world or other players. Reveal canvases also cap pixel density at 2×.
+
+The console records **Cinematic decoder ready** and **Cinematic playback report**
+with the module version, whether the source was local/preloaded, buffered size,
+resolution, waits/stalls, and frame counts where supported. The latest ten
+reports stay in that browser's memory and can be read with:
+
+```js
+game.modules.get("telys-gacha-studio-hsr-overwrite").api.getVideoPlaybackReports()
+```
+
+Reports omit the source URL and are not sent anywhere. A log without these
+measurements cannot establish whether a stutter came from loading or frame
+decoding/rendering. High-resolution or demanding encodes may still need a
+smaller/lower-bitrate source video on slower devices.
+
 ## Actor metadata integration
 
 Tely's Star Rail Ultimates supplies:
@@ -184,7 +210,8 @@ Tests exercise metadata import, per-banner overrides, reward editor save/cancel,
 Actor drop and upload timing, immutable reward delivery, single/ten-pull
 transitions, five-star-preserving ten-pull skipping, summary layout, independent
 portrait/splash framing, full video buffering, cache reuse/eviction, skipped
-downloads, and the host animation integration.
+downloads, decoder readiness/cancellation, rendering restoration, playback
+diagnostics, and the host animation integration.
 This release targets Foundry 14; a live Foundry world was not available during
 automated validation. Changes to the host's internal class names or file layout
 may require an integration update.

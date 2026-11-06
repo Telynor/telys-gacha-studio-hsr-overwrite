@@ -62,6 +62,7 @@
 #tgs-hsr-overlay .tgs-counter{position:absolute;top:20px;left:24px;z-index:4;color:#c5cedf;font-size:14px;text-shadow:0 2px 8px #000;pointer-events:none}
 #tgs-hsr-overlay .tgs-hint{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);max-width:calc(100% - 32px);z-index:4;background:#080e1dc9;border-radius:4px;padding:9px 16px;color:#f5f5f8;font-size:14px;text-align:center;pointer-events:none}
 #tgs-hsr-overlay .tgs-announcement{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;pointer-events:none}
+#tgs-hsr-overlay .tgs-cinematic-status{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:7;padding:12px 18px;border-radius:4px;background:#080e1de6;color:#edf0f7;text-align:center;pointer-events:none}
 #tgs-hsr-overlay .tgs-skip-opening,#tgs-hsr-overlay .tgs-skip-ten{position:absolute;top:20px;right:24px;z-index:7;width:auto;min-height:44px;padding:8px 14px;background:#090f1bc9;border:1px solid #a5aebd;border-radius:4px;color:#fff;font:14px Arial,sans-serif}
 #tgs-hsr-overlay .tgs-summary{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:60px 20px 20px;background:#070a144d}
 #tgs-hsr-overlay .tgs-summary h2{position:absolute;top:20px;left:24px;margin:0;border:0;font:500 22px Arial,sans-serif;letter-spacing:.03em;text-shadow:0 2px 12px #000}

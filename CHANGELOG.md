@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.8
+
+- Wait for decoded future frames in the actual cinematic video element after
+  its file has downloaded. Keep Skip available while preparing the decoder.
+- Temporarily reduce this browser's hidden tabletop rendering and pause running
+  banner CSS/Web Animations while the opening prepares/plays. Restore the prior
+  limits/animations on completion, Skip, startup failure, or closing the reveal.
+- Add a client setting for background rendering reduction, enabled by default.
+  Preserve the tabletop's configured minimum and any later changes to its limit.
+- Cap reveal Canvas pixel density at 2× to avoid excessive high-DPI allocation.
+- Add local cinematic reports for buffered playback, decoder readiness,
+  resolution, waits/stalls, and dropped frames when supported. Include the
+  installed version and active preload settings in the integration startup log.
+- Time out unsuccessful decoder preparation instead of holding the pull open;
+  keep original rewards and five-star-preserving ten-pull Skip behavior intact.
+
 ## 1.0.7
 
 - Add a **Skip** button for ten-pulls, available during the configured opening

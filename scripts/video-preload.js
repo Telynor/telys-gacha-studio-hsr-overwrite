@@ -30,8 +30,8 @@ export async function prepareSequenceVideos(banner, visuals, {opening = true, re
   const sources = reduced ? [] : [...new Set([selectedOpening, ...visuals.map(visual => auraSource(visual.stars))].filter(Boolean))];
   const local = new Map(), leases = [];
   const release = () => {for (const lease of leases.splice(0)) lease.release();};
-  if (!preload) return {opening: selectedOpening, source: src => src, release};
-  if (!sources.length) return {opening: "", source: () => "", release};
+  if (!preload) return {opening: selectedOpening, openingBytes: 0, preloaded: false, source: src => src, release};
+  if (!sources.length) return {opening: "", openingBytes: 0, preloaded: true, source: () => "", release};
 
   const controller = new AbortController(), progress = new Map();
   const status = document.createElement("div"); status.id = "tgs-hsr-preload";
@@ -58,7 +58,7 @@ export async function prepareSequenceVideos(banner, visuals, {opening = true, re
       for (let index = 0; index < outcomes.length; index++) if (outcomes[index].status === "rejected") console.warn(`${ID} | Could not buffer video ${sources[index]}`, outcomes[index].reason);
       if (selectedOpening && !local.has(selectedOpening)) globalThis.ui?.notifications?.warn("The opening video could not be preloaded. Continuing with the reward reveal.");
     }
-    return {opening: local.get(selectedOpening) || "", source: src => local.get(src) || "", release};
+    return {opening: local.get(selectedOpening) || "", openingBytes: leases.find(lease => lease.src === selectedOpening)?.bytes || 0, preloaded: true, source: src => local.get(src) || "", release};
   } catch (error) {release(); throw error;}
   finally {status.remove();}
 }
