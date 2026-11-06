@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.7
+
+- Add a **Skip** button for ten-pulls, available during the configured opening
+  video and reward reveals. Singles retain their existing behavior.
+- Skip the opening and remaining three-/four-star reveals while keeping every
+  remaining five-star's full Path/star lead-in, splash art, and labels. Each
+  five-star stays on screen until clicked; after the last one, open the summary.
+- Keep multiple five-stars in their actual pull order, continue a five-star
+  already playing without restarting it, and avoid replaying earlier rewards.
+- Go directly to the summary when no five-stars remain. Always show all ten
+  original rewards in the summary without changing Items, quantities, or delivery.
+- Stop skipped animation frames and ignore late video callbacks. Support native
+  keyboard activation of Skip and preserve reduced-motion preferences.
+
 ## 1.0.6
 
 - Download the selected opening and rarity aura videos completely before

@@ -79,6 +79,16 @@ screen shape.
 - Every reward holds until one click, Enter, Space, or Escape advances it.
 - Singles close after their reward. Only a ten-pull shows the angled,
   staggered **3–4–3** summary. Click that screen to close it.
+- Ten-pulls have a **Skip** button in the top-right corner, during the opening
+  video and individual reveals. It skips the rest of the opening and all
+  remaining three-/four-star reveals. Every remaining five-star keeps its
+  Path/five-star lead-in, splash, labels, and click-to-continue hold; after the
+  last five-star, one click opens the complete ten-reward summary. Without any
+  remaining five-stars, Skip opens the summary immediately.
+- A five-star already on screen continues from its current animation time;
+  five-stars already viewed are not replayed. Multiple five-stars retain their
+  original pull order. The summary includes all ten rewards, including the
+  individual reveals that were skipped.
 - Real pulls always retain the host's selected rewards, rarities, and order.
   The demonstration's shuffle is not included in production.
 - Concurrent pull presentations queue instead of replacing each other.
@@ -172,9 +182,9 @@ the original behavior when this extension is disabled.
 Run `npm test`, `npm run check`, and `npm run build` with Node.js and Python 3.
 Tests exercise metadata import, per-banner overrides, reward editor save/cancel,
 Actor drop and upload timing, immutable reward delivery, single/ten-pull
-transitions, summary layout, independent portrait/splash framing, full video
-buffering, cache reuse/eviction, skipped downloads, and the host animation
-integration.
+transitions, five-star-preserving ten-pull skipping, summary layout, independent
+portrait/splash framing, full video buffering, cache reuse/eviction, skipped
+downloads, and the host animation integration.
 This release targets Foundry 14; a live Foundry world was not available during
 automated validation. Changes to the host's internal class names or file layout
 may require an integration update.

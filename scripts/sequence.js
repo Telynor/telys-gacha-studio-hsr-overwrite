@@ -1,6 +1,6 @@
 import {ID, COLORS, asset, clamp, smooth, ease, escapeHTML} from "./constants.js";
 import {loadAsset, drawAnchored} from "./assets.js";
-import {newSequence, seekSequence, advanceSequence, backgroundAt, readyAt, hasSummary} from "./model.js";
+import {newSequence, seekSequence, advanceSequence, skipTenPull, backgroundAt, readyAt, hasSummary} from "./model.js";
 import {videoCache as browserVideoCache} from "./video-cache.js";
 import {auraSource, prepareSequenceVideos} from "./video-preload.js";
 import {portraitStyle} from "./portrait-layout.js";
@@ -122,13 +122,15 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
       const priorFocus = document.activeElement, previousOverflow = document.body.style.overflow;
       const overlay = document.createElement("div"); overlay.id = "tgs-hsr-overlay"; overlay.className = "tgs-hsr-overlay";
       overlay.setAttribute("role", "dialog"); overlay.setAttribute("aria-modal", "true"); overlay.setAttribute("aria-label", "Warp reward reveal"); overlay.tabIndex = -1;
-      overlay.innerHTML = `<img class="tgs-starfield" src="${asset("starfield.png")}" alt=""><video class="tgs-aura" muted playsinline preload="auto" aria-hidden="true"></video><video class="tgs-opening" playsinline preload="auto" hidden></video><canvas class="tgs-frame" aria-hidden="true"></canvas><span class="tgs-counter"></span><span class="tgs-hint" hidden>Click anywhere to continue</span><span class="tgs-announcement" aria-live="polite"></span><button type="button" class="tgs-skip-opening" hidden>Skip opening</button><div class="tgs-summary" hidden><h2>Warp Result</h2><div class="tgs-summary-rows"></div><button type="button" class="tgs-close-summary" aria-label="Close warp results">×</button></div>`;
+      overlay.innerHTML = `<img class="tgs-starfield" src="${asset("starfield.png")}" alt=""><video class="tgs-aura" muted playsinline preload="auto" aria-hidden="true"></video><video class="tgs-opening" playsinline preload="auto" hidden></video><canvas class="tgs-frame" aria-hidden="true"></canvas><span class="tgs-counter"></span><span class="tgs-hint" hidden>Click anywhere to continue</span><span class="tgs-announcement" aria-live="polite"></span><button type="button" class="tgs-skip-opening" hidden>Skip opening</button><button type="button" class="tgs-skip-ten" aria-label="Skip ten-pull animations; five-star reveals still play" title="Keep five-star reveals and show all ten rewards" hidden>Skip</button><div class="tgs-summary" hidden><h2>Warp Result</h2><div class="tgs-summary-rows"></div><button type="button" class="tgs-close-summary" aria-label="Close warp results">×</button></div>`;
       document.body.append(overlay); document.body.style.overflow = "hidden";
       const frame = overlay.querySelector(".tgs-frame"), context = frame.getContext("2d"), field = overlay.querySelector(".tgs-starfield");
       const aura = overlay.querySelector(".tgs-aura"), openingVideo = overlay.querySelector(".tgs-opening"), skip = overlay.querySelector(".tgs-skip-opening");
+      const skipTen = overlay.querySelector(".tgs-skip-ten");
       const counter = overlay.querySelector(".tgs-counter"), hint = overlay.querySelector(".tgs-hint"), announcement = overlay.querySelector(".tgs-announcement");
       const summary = overlay.querySelector(".tgs-summary"), rows = overlay.querySelector(".tgs-summary-rows");
       const controller = new AbortController(), state = newSequence(visuals);
+      skipTen.hidden = !hasSummary(state);
       let width = 736, height = 414, dpr = 1, raf = 0, started = null, bgStarted = false, auraFailed = false, auraVersion = 0, finished = false, openingNow = false, bgm;
       const current = () => visuals[state.index];
       const sound = src => {if (src) try {playSFX(src, .7);} catch { /* Audio never blocks delivery. */ }};
@@ -190,8 +192,9 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
         counter.textContent = state.count === 1 ? "" : `${state.index + 1} / ${state.count}`;
         draw();
         if (state.phase === "holding") {
-          announcement.textContent = `${visual.name}. ${visual.stars}-star ${visual.kind === "character" ? "Character" : visual.kind === "lightCone" ? "Light Cone" : "reward"}. ${visual.elementName || ""}. ${visual.pathName || ""}. ${state.count === 1 ? "Click anywhere to close." : "Click anywhere to continue."}`;
-          hint.textContent = state.count === 1 ? "Click anywhere to close" : "Click anywhere to continue";
+          const prompt = state.count === 1 ? "Click anywhere to close" : state.skipLower && !state.fiveStars.some(index => index > state.index) ? "Click anywhere to view results" : "Click anywhere to continue";
+          announcement.textContent = `${visual.name}. ${visual.stars}-star ${visual.kind === "character" ? "Character" : visual.kind === "lightCone" ? "Light Cone" : "reward"}. ${visual.elementName || ""}. ${visual.pathName || ""}. ${prompt}.`;
+          hint.textContent = prompt;
         }
       }
       function startReward() {
@@ -204,7 +207,7 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
         if (reduced) {state.time = readyAt(visual.stars); bgStarted = true; auraFailed = true; renderAt(state.time); return;}
         renderAt(0);
         const tick = now => {
-          if (finished) return;
+          if (finished || state.phase === "summary") return;
           try {
             started ??= now;
             let time = (now - started) * speed;
@@ -218,6 +221,7 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
       }
       function showSummary() {
         if (!hasSummary(state)) return finish();
+        cancelAnimationFrame(raf); auraVersion++; skipTen.hidden = true;
         aura.pause(); aura.style.opacity = "0"; field.style.opacity = "1"; hint.hidden = true; counter.hidden = true;
         context.setTransform(1, 0, 0, 1, 0, 0); context.clearRect(0, 0, frame.width, frame.height);
         const line = [3, 4, 3].map(() => {const row = document.createElement("div"); row.className = "tgs-result-row"; rows.append(row); return row;});
@@ -230,16 +234,20 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
         });
         summary.hidden = false; announcement.textContent = "Ten-pull complete. Ten rewards are shown. Click anywhere to close.";
       }
+      function presentState() {
+        if (state.phase === "complete") finish(); else if (state.phase === "summary") showSummary(); else startReward();
+      }
       const advance = () => {
         if (finished || openingNow) return;
         if (state.phase === "summary") return finish();
         if (!advanceSequence(state)) return;
-        try {if (state.phase === "complete") finish(); else if (state.phase === "summary") showSummary(); else startReward();}
+        try {presentState();}
         catch (error) {console.error(`${ID} | Reveal transition failed`, error); finish();}
       };
       overlay.addEventListener("click", advance, {signal: controller.signal});
       overlay.querySelector(".tgs-close-summary").addEventListener("click", event => {event.stopPropagation(); finish();}, {signal: controller.signal});
       overlay.addEventListener("keydown", event => {
+        if (event.target?.tagName === "BUTTON" && event.key !== "Escape") return;
         if (["Enter", " ", "Escape"].includes(event.key) && !event.repeat) {event.preventDefault(); if (openingNow) finishOpening(); else advance();}
       }, {signal: controller.signal});
       aura.addEventListener("error", () => {auraFailed = true; aura.style.opacity = "0"; draw();}, {signal: controller.signal});
@@ -249,13 +257,26 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
         if (openingFinished || finished) return; openingFinished = true; openingNow = false;
         openingVideo.pause(); openingVideo.hidden = true; skip.hidden = true;
         if (banner.audio?.bgmAnim) {bgm = new Audio(banner.audio.bgmAnim); bgm.loop = true; bgm.volume = .35; bgm.play()?.catch(() => {});}
-        startReward();
+        presentState();
       }
       skip.addEventListener("click", event => {event.stopPropagation(); finishOpening();}, {signal: controller.signal});
+      skipTen.addEventListener("click", event => {
+        event.stopPropagation();
+        if (finished) return;
+        const previousIndex = state.index;
+        if (!skipTenPull(state)) return;
+        skipTen.hidden = true; overlay.focus();
+        try {
+          if (openingNow) finishOpening();
+          else if (state.phase === "summary") showSummary();
+          else if (state.index !== previousIndex) startReward();
+          else renderAt(state.time); // A five-star already on screen keeps its animation clock.
+        } catch (error) {console.error(`${ID} | Ten-pull skip failed`, error); finish();}
+      }, {signal: controller.signal});
       openingVideo.addEventListener("ended", finishOpening, {signal: controller.signal}); openingVideo.addEventListener("error", finishOpening, {signal: controller.signal});
       const openingSrc = videos.opening;
       overlay.focus();
-      if (openingSrc && !reduced) {openingNow = true; openingVideo.hidden = false; skip.hidden = false; openingVideo.src = openingSrc; openingVideo.load?.(); openingVideo.play()?.catch(finishOpening);}
+      if (openingSrc && !reduced) {openingNow = true; openingVideo.hidden = false; skip.hidden = hasSummary(state); openingVideo.src = openingSrc; openingVideo.load?.(); openingVideo.play()?.catch(finishOpening);}
       else finishOpening();
     });
   } finally {videos.release();}
