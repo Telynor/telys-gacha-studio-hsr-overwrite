@@ -124,9 +124,11 @@ test("Cancel discards edits; Save updates only this entry's presentation and pre
   await env.cancel(); assert.deepEqual(env.item, before);
   const saved = editor(env.item);
   saved.root.input("name", "Custom Welt"); saved.root.input("splashArt", "banner-a/welt.png"); saved.root.input("artScale", "125");
+  saved.root.input("artX", "12.5"); saved.root.input("artY", "-20");
   assert.equal(await saved.save(), true);
   assert.equal(saved.item.reveal.telysHSR.overrides.splashArt, "banner-a/welt.png");
   assert.equal(saved.item.reveal.telysHSR.overrides.name, "Custom Welt"); assert.equal(saved.item.reveal.telysHSR.artScale, 125);
+  assert.equal(saved.item.reveal.telysHSR.artX, 12.5); assert.equal(saved.item.reveal.telysHSR.artY, -20);
   assert.equal(saved.item.uuid, before.uuid); assert.equal(saved.item.name, before.name); assert.equal(saved.item.qty, before.qty);
   assert.equal(saved.item.reveal.pathIcon, before.reveal.pathIcon); assert.equal(saved.item.reveal.kind, "character");
   assert.deepEqual(saved.other, otherBefore);
@@ -201,4 +203,31 @@ test("draft commits reject mismatched entries and editor labels escape markup", 
   const item = reward(), draft = createRewardDraft(item);
   assert.throws(() => applyRewardDraft({...item, entryId: "another"}, draft), /removed or replaced/);
   assert.doesNotMatch(rewardEditorHTML({...item, name: '<img onerror="bad">'}), /<img onerror/);
+});
+
+test("Fit whole artwork clears the selected entry's crop while preserving its Actor and Item links", async () => {
+  const item = reward(); Object.assign(item.reveal.telysHSR, {artScale: 240, artX: 20, artY: -50});
+  const env = editor(item);
+  assert.match(env.options.content, /data-tgs-art-preview/); assert.match(env.options.content, /Horizontal offset/);
+  env.root.dispatch("change", {dataset: {tgsFramingMode: ""}, value: "reveal"});
+  env.root.click("reset-framing"); await turn(); await env.save();
+  assert.equal(item.reveal.telysHSR.artScale, 100); assert.equal(item.reveal.telysHSR.artX, 0); assert.equal(item.reveal.telysHSR.artY, 0);
+  assert.equal(item.reveal.telysHSR.actorUuid, "Actor.Welt"); assert.equal(item.uuid, "Item.welt-card");
+});
+
+test("portrait framing saves independently from splash framing and survives reopening and reset", async () => {
+  const item = reward(), config = item.reveal.telysHSR;
+  Object.assign(config, {artScale: 150, artX: 20, artY: -10});
+  const env = editor(item), otherBefore = structuredClone(env.other);
+  assert.match(env.options.content, /data-tgs-field="portraitScale"/);
+  env.root.input("portraitScale", "130"); env.root.input("portraitX", "-15"); env.root.input("portraitY", "-55");
+  assert.equal(config.portraitScale, undefined); await env.save();
+  assert.deepEqual([item.reveal.telysHSR.portraitScale, item.reveal.telysHSR.portraitX, item.reveal.telysHSR.portraitY], [130, -15, -55]);
+  assert.deepEqual([item.reveal.telysHSR.artScale, item.reveal.telysHSR.artX, item.reveal.telysHSR.artY], [150, 20, -10]);
+  assert.deepEqual(env.other, otherBefore);
+  const reopened = editor(item);
+  assert.match(reopened.options.content, /data-tgs-field="portraitY"[^>]+value="-55"/);
+  reopened.root.click("reset-framing"); await turn(); await reopened.save();
+  assert.deepEqual([item.reveal.telysHSR.portraitScale, item.reveal.telysHSR.portraitX, item.reveal.telysHSR.portraitY], [100, 0, 0]);
+  assert.deepEqual([item.reveal.telysHSR.artScale, item.reveal.telysHSR.artX, item.reveal.telysHSR.artY], [150, 20, -10]);
 });

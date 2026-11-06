@@ -31,7 +31,11 @@ It is optional: the reward programmer also permits manually supplied metadata.
    sidebar or an Actor compendium into the drop area.
 5. The actor supplies its name, Path, element, icons, and splash artwork.
    Use **Upload / choose** to select or upload replacement art for this reward.
-6. Use **Preview this reward**, click **Save changes**, then **save the banner**.
+6. Under **Character art framing**, choose **10-pull portrait** or **Reveal splash
+   art**. Drag the art inside the preview to position it, scroll to zoom, or use
+   the zoom slider and horizontal/vertical offset fields. Arrow keys nudge the
+   art by 1% (Shift + arrow: 5%). Each view saves its own framing.
+7. Use **Preview this reward**, click **Save changes**, then **save the banner**.
    **Cancel** or closing the window discards its pending changes.
 
 The Config button stays inside the reward panel. Actor links and artwork fields
@@ -50,6 +54,14 @@ The snapshot also makes the reveal available to players who cannot read the
 GM's source Actor. **Refresh from actor** imports changed source metadata;
 manual artwork overrides are preserved. **Use actor artwork** clears the
 per-reward splash override. The source Actor is never modified.
+
+The summary preview uses the saved Actor portrait; the reveal preview uses its
+splash artwork or this reward's override. Summary portraits start aligned to the
+top so a tall portrait shows the character's head. Reveal artwork fits fully
+inside the screen by default. **Reset portrait framing** restores the default
+summary crop; **Fit whole artwork** restores the reveal's fit. Reveal framing
+scales with the viewer's screen, and the preview matches the current browser's
+screen shape.
 
 ## Pull presentation
 
@@ -109,6 +121,33 @@ reward reveals. An opening can be skipped without changing the selected rewards.
 Disable **Keep configured opening videos** in this extension's settings to omit
 them. Reveal playback defaults to 1.5× and can be changed in Module Settings.
 
+## Local video preloading
+
+Opening a banner starts downloading its configured normal/five-star openings
+and the three rarity aura clips in the background. Before playback, the selected
+opening and needed aura files finish downloading and are played through local
+Blob URLs. Repeat pulls reuse those files, and consecutive rewards of the same
+rarity seek the existing aura video instead of loading it again.
+
+If a pull starts before the files are ready, **Preparing warp video** shows the
+download progress. **Skip video** (or Escape) continues with the character reveals
+and Canvas rarity effects. A failed download also falls back to the reveal;
+preloading does not alter the host's saved rewards or make another charge.
+
+**Preload videos in this browser** is enabled by default. The client setting
+**Video preload memory limit (MB)** defaults to 256 MB. Unused encoded video files
+are evicted as the cache fills; files needed for active playback stay pinned, so
+an active pull can temporarily exceed that retained-cache budget. A single file
+larger than the limit is skipped. Reloading or leaving the world releases the
+cache. These copies are local to each player's browser and are not written to
+their disk by this module.
+
+Foundry-hosted asset paths work directly. External video hosts must permit CORS
+downloads; otherwise use a file uploaded to Foundry or disable preloading in that
+browser to use the previous URL playback. Buffering avoids network stalls during
+playback; video decoding still depends on the player's device. Reduced-motion
+preferences omit video downloads and playback.
+
 ## Actor metadata integration
 
 Tely's Star Rail Ultimates supplies:
@@ -133,7 +172,9 @@ the original behavior when this extension is disabled.
 Run `npm test`, `npm run check`, and `npm run build` with Node.js and Python 3.
 Tests exercise metadata import, per-banner overrides, reward editor save/cancel,
 Actor drop and upload timing, immutable reward delivery, single/ten-pull
-transitions, summary layout, and the host animation integration.
+transitions, summary layout, independent portrait/splash framing, full video
+buffering, cache reuse/eviction, skipped downloads, and the host animation
+integration.
 This release targets Foundry 14; a live Foundry world was not available during
 automated validation. Changes to the host's internal class names or file layout
 may require an integration update.

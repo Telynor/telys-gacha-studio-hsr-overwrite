@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.6
+
+- Download the selected opening and rarity aura videos completely before
+  playback, then use browser-local Blob URLs. Warm the banner's videos when it
+  opens and reuse the downloads across pulls.
+- Show preload progress with a Skip video option. Timed-out or failed downloads
+  fall back to the reward reveal without changing delivered Items.
+- Add a bounded client video cache with configurable memory budget, shared
+  downloads, active-playback protection, and cleanup when leaving the page.
+- Seek consecutive same-rarity aura clips instead of reloading their media.
+- Add a draggable character art preview to each reward's Config window, with
+  wheel/slider zoom, numeric offsets, arrow-key nudges, and reset controls.
+- Save separate framing for the 10-pull summary portrait and full-screen splash
+  art. The preview and real pull use the same placement calculations.
+- Fit full character splash art inside the screen by default and align summary
+  portraits to the top, avoiding the old torso crop on tall Actor portraits.
+- Keep adjustments local to the selected banner reward; preserve the linked
+  Actor and awarded character-card Item.
+
 ## 1.0.5
 
 - Remove the extra rectangular outlines drawn around Light Cone art. The linked

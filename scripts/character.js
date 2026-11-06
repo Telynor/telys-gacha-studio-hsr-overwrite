@@ -111,6 +111,11 @@ export async function resolveVisual(result, banner = {}, {rules = {}, resolveUui
     art,
     cardArt: safeImage(config.cardArt || legacy.cardArt || snapshot.portrait || art, art),
     artScale: Math.max(25, Math.min(300, Number(config.artScale) || 100)),
+    artX: Math.max(-200, Math.min(200, Number(config.artX) || 0)),
+    artY: Math.max(-200, Math.min(200, Number(config.artY) || 0)),
+    portraitScale: Math.max(25, Math.min(300, Number(config.portraitScale) || 100)),
+    portraitX: Math.max(-200, Math.min(200, Number(config.portraitX) || 0)),
+    portraitY: Math.max(-200, Math.min(200, Number(config.portraitY) || 0)),
     rewardItemUuid: String(item.uuid || ""),
   };
 }

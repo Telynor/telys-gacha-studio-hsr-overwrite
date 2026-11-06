@@ -1,13 +1,27 @@
 import {ID, HOST_ID, REVEAL_KEY, appElement, clamp, clone, escapeHTML, safeImage, setting} from "./constants.js";
-import {actorFromDrop, characterConfig, linkCharacter, unlinkCharacter} from "./character.js";
+import {actorFromDrop, characterConfig, linkCharacter, resolveStars, unlinkCharacter} from "./character.js";
+import {attachArtFraming} from "./art-framing.js";
 
 const activeEditors = new WeakMap();
 const editableFields = ["name", "pathName", "elementName", "pathIcon", "elementIcon", "splashArt"];
+const framingFields = ["artScale", "artX", "artY", "portraitScale", "portraitX", "portraitY"];
 
-export function rewardEditorHTML(item, {dropOpen = Boolean(characterConfig(item).actorUuid)} = {}) {
+export function rewardEditorHTML(item, {dropOpen = Boolean(characterConfig(item).actorUuid), framingMode = "portrait"} = {}) {
   const config = characterConfig(item), imported = config.snapshot || {}, overrides = config.overrides || {};
   const value = field => escapeHTML(overrides[field] || imported[field] || item.reveal?.[field] || "");
   const imageField = (field, label) => `<label class="tgs-editor-image-field">${label}<div class="tgs-editor-input-row"><input type="text" data-tgs-field="${field}" value="${value(field)}" placeholder="Image file path"><button type="button" data-tgs-editor-action="browse" data-tgs-image-field="${field}"><i class="fas fa-folder-open" aria-hidden="true"></i> Upload / choose</button></div></label>`;
+  const character = Boolean(config.actorUuid || imported.actorUuid || item.reveal?.kind === "character");
+  const prefix = character && framingMode === "portrait" ? "portrait" : "art";
+  const scale = clamp(Number(config[`${prefix}Scale`]) || 100, 25, 300);
+  const scaleField = `<label>Zoom (%)<input type="number" data-tgs-field="${prefix}Scale" min="25" max="300" step="1" value="${scale}"></label>`;
+  const framing = character ? `<section class="tgs-editor-section" aria-label="Character art framing"><h3>Character art framing</h3>
+      <label>Adjust<select data-tgs-framing-mode><option value="portrait" ${framingMode === "portrait" ? "selected" : ""}>10-pull portrait</option><option value="reveal" ${framingMode === "reveal" ? "selected" : ""}>Reveal splash art</option></select></label>
+      <div class="tgs-art-preview-frame" data-tgs-art-frame><canvas class="tgs-art-preview" data-tgs-art-preview tabindex="0" role="img" aria-label="Character art preview. Drag to move the art, scroll to zoom, or use the arrow keys."></canvas><span class="tgs-art-status" data-tgs-art-status>Loading artwork…</span>${framingMode === "portrait" ? `<span class="tgs-art-preview-caption" data-tgs-art-caption>${escapeHTML(overrides.name || imported.name || item.name)}</span>` : ""}</div>
+      <p class="tgs-editor-note">Drag the art to reposition it. Scroll to zoom. ${framingMode === "portrait" ? "This portrait appears on the 10-pull summary card. Reveal splash art has separate framing." : "The reveal frame matches this browser's screen shape; its labels stay fixed."}</p>
+      <div class="tgs-editor-fields">${scaleField}<label>Horizontal offset (%)<input type="number" data-tgs-field="${prefix}X" min="-200" max="200" step="0.1" value="${clamp(config[`${prefix}X`], -200, 200)}"></label><label>Vertical offset (%)<input type="number" data-tgs-field="${prefix}Y" min="-200" max="200" step="0.1" value="${clamp(config[`${prefix}Y`], -200, 200)}"></label></div>
+      <label>Zoom<input type="range" data-tgs-field="${prefix}Scale" min="25" max="300" step="1" value="${scale}"></label>
+      <div class="tgs-editor-actions"><button type="button" data-tgs-editor-action="reset-framing">${framingMode === "portrait" ? "Reset portrait framing" : "Fit whole artwork"}</button></div>
+    </section>` : scaleField;
   return `<div class="tgs-entry-editor" data-tgs-entry-editor>
     <header class="tgs-editor-item"><img src="${escapeHTML(safeImage(item.img, "icons/svg/item-bag.svg"))}" alt=""><div><span>Reward item</span><strong>${escapeHTML(item.name || "Reward item")}</strong><code>${escapeHTML(item.uuid || "")}</code></div></header>
     <section class="tgs-editor-section" aria-label="Corresponding character">
@@ -21,8 +35,9 @@ export function rewardEditorHTML(item, {dropOpen = Boolean(characterConfig(item)
     </section>
     <section class="tgs-editor-section" aria-label="Artwork and icons"><h3>Artwork and icons</h3>
       ${imageField("splashArt", "Splash artwork")}${imageField("pathIcon", "Path icon")}${imageField("elementIcon", "Element icon")}
-      <div class="tgs-editor-art-tools"><label>Art scale (%)<input type="number" data-tgs-field="artScale" min="25" max="300" step="5" value="${Number(config.artScale) || 100}"></label><button type="button" data-tgs-editor-action="actor-art">Use actor artwork</button><button type="button" data-tgs-editor-action="preview"><i class="fas fa-play" aria-hidden="true"></i> Preview this reward</button></div>
+      <div class="tgs-editor-art-tools"><button type="button" data-tgs-editor-action="actor-art">Use actor artwork</button><button type="button" data-tgs-editor-action="preview"><i class="fas fa-play" aria-hidden="true"></i> Preview this reward</button></div>
     </section>
+    ${framing}
     <p class="tgs-editor-note">Save changes to apply these settings to this reward entry, then save the banner. The configured reward Item is still what the player receives.</p>
   </div>`;
 }
@@ -43,10 +58,10 @@ export function applyRewardDraft(item, draft) {
 }
 
 function changeField(item, field, value) {
-  if (field !== "artScale" && !editableFields.includes(field)) return;
+  if (!framingFields.includes(field) && !editableFields.includes(field)) return;
   item.reveal ||= {}; item.reveal[REVEAL_KEY] ||= {};
   const config = item.reveal[REVEAL_KEY];
-  if (field === "artScale") config.artScale = clamp(value, 25, 300);
+  if (framingFields.includes(field)) config[field] = field.endsWith("Scale") ? clamp(value, 25, 300) : clamp(value, -200, 200);
   else {config.overrides ||= {}; config.overrides[field] = String(value || "").trim();}
 }
 
@@ -65,9 +80,24 @@ export async function openRewardEditor(app, {item, rarityId}, {preview, DialogCl
 
   const draft = createRewardDraft(item), controller = new AbortController(), pending = new Set();
   const record = {}; editors.set(key, record);
-  let root, closed = false, dropOpen = Boolean(characterConfig(item).actorUuid), version = 0;
+  let root, framing, closed = false, dropOpen = Boolean(characterConfig(item).actorUuid), version = 0, framingMode = "portrait";
   const content = () => root?.querySelector("[data-tgs-entry-editor]");
-  const repaint = () => {const node = content(); if (!closed && node) node.outerHTML = rewardEditorHTML(draft.data, {dropOpen});};
+  const syncFraming = except => {
+    const config = characterConfig(draft.data);
+    for (const input of content()?.querySelectorAll?.("[data-tgs-field]") || []) {
+      const field = input.dataset.tgsField;
+      if (input !== except && framingFields.includes(field)) input.value = String(Math.round((Number(config[field]) || (field.endsWith("Scale") ? 100 : 0)) * 100) / 100);
+    }
+  };
+  const mountFraming = () => {
+    framing?.destroy();
+    const rules = setting(HOST_ID, "systemRules", {}), rarity = (rules.rarities || []).find(value => value.id === rarityId) || {id: rarityId};
+    framing = attachArtFraming(content(), draft.data, {mode: framingMode, stars: resolveStars({item: draft.data, rarity}, rules), onChange: patch => {
+      for (const [field, value] of Object.entries(patch)) changeField(draft.data, field, value);
+      syncFraming();
+    }});
+  };
+  const repaint = () => {const node = content(); if (!closed && node) {node.outerHTML = rewardEditorHTML(draft.data, {dropOpen, framingMode}); mountFraming();}};
   const run = action => {
     const task = Promise.resolve().then(action).catch(notify).finally(() => pending.delete(task));
     pending.add(task); return task;
@@ -83,7 +113,14 @@ export async function openRewardEditor(app, {item, rarityId}, {preview, DialogCl
     if (!element || element === root) return;
     root = element;
     const options = {signal: controller.signal};
-    const update = event => {if (!closed && event.target?.dataset?.tgsField) changeField(draft.data, event.target.dataset.tgsField, event.target.value);};
+    const update = event => {
+      if (!closed && event.target?.dataset?.tgsFramingMode !== undefined) {
+        if (event.type !== "input") {framingMode = event.target.value === "reveal" ? "reveal" : "portrait"; repaint();} return;
+      }
+      if (closed || !event.target?.dataset?.tgsField) return;
+      changeField(draft.data, event.target.dataset.tgsField, event.target.value);
+      syncFraming(event.type === "input" ? event.target : null); framing?.refresh();
+    };
     root.addEventListener("input", update, options);
     root.addEventListener("change", update, options);
     root.addEventListener("dragover", event => {
@@ -116,6 +153,11 @@ export async function openRewardEditor(app, {item, rarityId}, {preview, DialogCl
           case "refresh": if (config.actorUuid) await importActor({type: "Actor", uuid: config.actorUuid}); break;
           case "unlink": version++; unlinkCharacter(draft.data); dropOpen = true; repaint(); break;
           case "actor-art": if (config.overrides) delete config.overrides.splashArt; repaint(); break;
+          case "reset-framing": {
+            const prefix = framingMode === "portrait" ? "portrait" : "art";
+            for (const [field, value] of Object.entries({[`${prefix}Scale`]: 100, [`${prefix}X`]: 0, [`${prefix}Y`]: 0})) changeField(draft.data, field, value);
+            syncFraming(); framing?.refresh(); break;
+          }
           case "browse": {
             const Picker = globalThis.foundry?.applications?.apps?.FilePicker?.implementation || globalThis.FilePicker;
             if (!Picker) throw new Error("Foundry's image browser is unavailable.");
@@ -135,6 +177,7 @@ export async function openRewardEditor(app, {item, rarityId}, {preview, DialogCl
         }
       });
     }, options);
+    mountFraming();
   };
   const save = async () => {
     while (pending.size) await Promise.all([...pending]);
@@ -144,12 +187,12 @@ export async function openRewardEditor(app, {item, rarityId}, {preview, DialogCl
     applyRewardDraft(current, draft);
     return true;
   };
-  const cleanup = () => {closed = true; version++; controller.abort(); if (editors.get(key) === record) editors.delete(key);};
+  const cleanup = () => {closed = true; version++; framing?.destroy(); controller.abort(); if (editors.get(key) === record) editors.delete(key);};
   try {
     record.promise = DialogClass.wait({
       window: {title: `Config — ${item.name || "Reward item"}`, resizable: true},
       position: {width: 720}, classes: ["tgs-reward-config-window"], modal: false, rejectClose: false,
-      content: rewardEditorHTML(draft.data, {dropOpen}), render,
+      content: rewardEditorHTML(draft.data, {dropOpen, framingMode}), render,
       buttons: [
         {action: "save", label: "Save changes", icon: "fas fa-check", default: true, callback: save},
         {action: "cancel", label: "Cancel", callback: () => null},

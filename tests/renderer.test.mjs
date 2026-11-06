@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {playSequence} from "../scripts/sequence.js";
+import {playSequence as renderSequence} from "../scripts/sequence.js";
+import {VideoMemoryCache} from "../scripts/video-cache.js";
+
+const playSequence = (results, visuals, banner, options) => renderSequence(results, visuals, banner, {videoCache: testVideoCache, ...options});
 
 class Element {
   constructor(tag = "div") {
@@ -46,7 +49,9 @@ class Media extends Element {
   constructor(tag = "audio") {super(tag); this.readyState = 2; this.currentTime = 0; this.loads = 0;}
   play() {return Promise.resolve();} pause() {} load() {this.loads++; this.currentTime = 0;}
 }
+let testVideoCache;
 function browser(reduced = false) {
+  testVideoCache = {acquire: async (src, {onProgress}) => {onProgress?.({loaded: 1, total: 1}); return {url: `blob:buffered/${src}`, release() {}};}};
   const prior = new Map();
   const set = (key, value) => {prior.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, {value, configurable: true, writable: true});};
   const frames = new Map(); let next = 0, now = 0;
@@ -110,7 +115,7 @@ test("existing opening clips can be skipped into the new reveal without changing
     const results = [{item: {uuid: "Item.character"}, rarity: {stars: 5}}];
     const done = playSequence(results, [visual(5)], {animation: {type: "video", videoNormal: "train-normal.mp4", videoSSR: "train-gold.mp4"}});
     const root = await mounted(env), opening = root.querySelector(".tgs-opening");
-    assert.equal(opening.hidden, false); assert.equal(opening.src, "train-gold.mp4");
+    assert.equal(opening.hidden, false); assert.equal(opening.src, "blob:buffered/train-gold.mp4");
     root.querySelector(".tgs-skip-opening").dispatch("click"); assert.equal(opening.hidden, true);
     hold(env, root); root.dispatch("click"); assert.equal(await done, results);
   } finally {env.restore();}
@@ -137,7 +142,7 @@ test("a four-star purple flash is drawn while its aura video is still loading", 
   } finally {env.restore();}
 });
 
-test("consecutive four-star rewards restart the purple aura instead of retaining its old position", async () => {
+test("consecutive four-star rewards seek their buffered purple aura without reloading it", async () => {
   const env = browser();
   try {
     const done = playSequence([{}, {}], [visual(4, 0), visual(4, 1)], {});
@@ -145,7 +150,7 @@ test("consecutive four-star rewards restart the purple aura instead of retaining
     hold(env, root); await new Promise(resolve => setImmediate(resolve));
     aura.currentTime = 7; frame.gradients = [];
     root.dispatch("click"); hold(env, root);
-    assert.equal(aura.loads, 2); assert(aura.currentTime < 1.5);
+    assert.equal(aura.loads, 1); assert(aura.currentTime < 1.5);
     assert(frame.gradients.some(stops => stops.some(stop => /^rgba\(189,133,255,0\.[1-9]/.test(stop.color))));
     root.dispatch("click"); await done;
   } finally {env.restore();}
@@ -175,5 +180,33 @@ test("a throttled frame cannot jump directly past the four-star flash", async ()
     env.tick(75);
     assert(frame.gradients.some(stops => stops.some(stop => /^rgba\(189,133,255,0\.[1-9]/.test(stop.color))));
     hold(env, root); root.dispatch("click"); await done;
+  } finally {env.restore();}
+});
+
+test("the opening and aura play from fully buffered local URLs, reused across pulls", async () => {
+  const env = browser(), calls = [], cache = new VideoMemoryCache({fetcher: async src => {calls.push(src); return new Response(new Uint8Array([1, 2, 3]));}});
+  try {
+    for (let i = 0; i < 2; i++) {
+      const done = playSequence([{}], [visual(3)], {animation: {type: "video", videoNormal: "train.mp4"}}, {videoCache: cache});
+      const root = await mounted(env), opening = root.querySelector(".tgs-opening");
+      assert.match(opening.src, /^blob:/); opening.dispatch("ended"); hold(env, root);
+      assert.match(root.querySelector(".tgs-aura").src, /^blob:/); root.dispatch("click"); await done;
+    }
+    assert.equal(calls.length, 2); assert.equal(calls.filter(src => src === "train.mp4").length, 1);
+  } finally {cache.clear({force: true}); env.restore();}
+});
+
+test("skipping a pending video preload continues to the held reward", async () => {
+  const env = browser();
+  const cache = {acquire: (_src, {signal, onProgress}) => new Promise((_resolve, reject) => {
+    onProgress({loaded: 50, total: 100}); signal.addEventListener("abort", () => reject(new DOMException("Skipped", "AbortError")), {once: true});
+  })};
+  try {
+    const results = [{}], done = playSequence(results, [visual(4)], {animation: {type: "video", videoNormal: "slow-train.mp4"}}, {videoCache: cache});
+    const preparing = env.body.children.find(node => node.id === "tgs-hsr-preload"); assert(preparing); assert.equal(env.overlay(), undefined);
+    assert.match(preparing.querySelector(".tgs-preload-text").textContent, /50%/);
+    preparing.querySelector(".tgs-preload-skip").dispatch("click");
+    const root = await mounted(env); assert.equal(root.querySelector(".tgs-opening").hidden, true);
+    hold(env, root); root.dispatch("click"); assert.equal(await done, results);
   } finally {env.restore();}
 });
