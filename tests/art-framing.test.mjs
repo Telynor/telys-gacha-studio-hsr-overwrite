@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {attachArtFraming, framingVisual} from "../scripts/art-framing.js";
-import {paintArt} from "../scripts/sequence.js";
+import {paintArt, paintIntro} from "../scripts/sequence.js";
 import {resolveVisual} from "../scripts/character.js";
-import {paintPortrait, portraitLayout, portraitStyle} from "../scripts/portrait-layout.js";
+import {PORTRAIT_ASPECT, paintPortrait, portraitLayout, portraitStyle} from "../scripts/portrait-layout.js";
 
 const reward = () => ({uuid: "Item.card", name: "Aventurine Card", reveal: {telysHSR: {actorUuid: "Actor.Aventurine", snapshot: {name: "Aventurine", splashArt: "aventurine.webp", pathName: "Preservation"}}}});
 const bitmap = src => ({image: {src}, width: 500, height: 1000, boundsWidth: 500, boundsHeight: 1000, cx: 250, cy: 500});
@@ -20,6 +20,32 @@ test("the default full-height portrait fits the stage instead of enlarging past 
   paintArt(ctx, 1600, 900, 650, {kind: "character", artScale: 100}, image, 1);
   const draw = ctx.calls.find(call => call.type === "image").args;
   assert.equal(draw[0], image.image); assert(draw[4] <= 900 * .94 + 1e-9); assert(draw[3] <= 1600 * .94 + 1e-9);
+});
+
+test("the five-star lead-in centers the visible Path and the double-size middle star", () => {
+  const ctx = context();
+  ctx.createRadialGradient = ctx.createLinearGradient;
+  const path = {...bitmap("path"), cx: 220, cy: 420};
+  const star = {...bitmap("star"), cx: 265, cy: 495};
+  paintIntro(ctx, 1280, 720, 800, star, path);
+  const draws = ctx.calls.filter(call => call.type === "image").map(call => call.args);
+  assert.equal(draws.length, 6);
+  assert.deepEqual(ctx.calls.find(call => call.type === "transform").args, [1, 0, 0, 1, 640, 360]);
+  for (const [draw, image] of [[draws[0], path], [draws[3], star]]) {
+    assert(Math.abs(draw[1] + image.cx * draw[3] / image.width) < 1e-9);
+    assert(Math.abs(draw[2] + image.cy * draw[4] / image.height) < 1e-9);
+  }
+  assert.equal(draws[3][3], draws[1][3] * 2);
+});
+
+test("a Light Cone starts enlarged and settles at half the screen height", () => {
+  const ctx = context(), image = bitmap("light-cone"), visual = {kind: "lightCone", artScale: 100};
+  paintArt(ctx, 1280, 720, 50, visual, image, 1);
+  paintArt(ctx, 1280, 720, 650, visual, image, 1);
+  const [entry, hold] = ctx.calls.filter(call => call.type === "image").map(call => call.args);
+  assert.equal(hold[4], 360);
+  assert(entry[4] > hold[4] * 1.5);
+  assert.equal(hold[0], image.image);
 });
 
 test("saved framing is resolved per reward and moves the production art by viewport percentages", async () => {
@@ -78,13 +104,14 @@ test("the summary portrait preview and actual card use the same crop, including 
   Object.assign(config, {artScale: 180, artX: 15, artY: -20, portraitScale: 125, portraitX: -10, portraitY: -40});
   config.snapshot.portrait = "aventurine-portrait.webp";
   const visual = await resolveVisual({item, rarity: {stars: 5}}, {}, {resolveUuid: async () => null});
-  const image = bitmap(visual.cardArt), layout = portraitLayout(175, 100, image, visual);
-  assert.equal(layout.y, -40); assert.equal(layout.height, 437.5);
+  const image = bitmap(visual.cardArt), layout = portraitLayout(PORTRAIT_ASPECT * 100, 100, image, visual);
+  assert.equal(layout.y, -40); assert.equal(layout.height, 475);
   const style = Object.fromEntries(portraitStyle(visual, image).split(";").filter(Boolean).map(part => part.split(":")));
-  const ctx = context(); paintPortrait(ctx, 700, 400, visual, image);
+  const width = PORTRAIT_ASPECT * 400;
+  const ctx = context(); paintPortrait(ctx, width, 400, visual, image);
   const draw = ctx.calls.find(call => call.type === "image").args;
-  assert.equal(draw[1] / 700 * 100, Number.parseFloat(style.left)); assert.equal(draw[2] / 400 * 100, Number.parseFloat(style.top));
-  assert.equal(draw[3] / 700 * 100, Number.parseFloat(style.width)); assert.equal(draw[4] / 400 * 100, Number.parseFloat(style.height));
+  assert.equal(draw[1] / width * 100, Number.parseFloat(style.left)); assert.equal(draw[2] / 400 * 100, Number.parseFloat(style.top));
+  assert.equal(draw[3] / width * 100, Number.parseFloat(style.width)); assert.equal(draw[4] / 400 * 100, Number.parseFloat(style.height));
   assert.equal(framingVisual(item, "portrait").art, visual.cardArt);
   const env = preview(item, {mode: "portrait"});
   try {

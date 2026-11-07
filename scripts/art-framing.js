@@ -3,7 +3,7 @@ import {characterConfig} from "./character.js";
 import {loadAsset} from "./assets.js";
 import {paintArt, paintNameplate} from "./sequence.js";
 import {readyAt} from "./model.js";
-import {paintPortrait} from "./portrait-layout.js";
+import {PORTRAIT_ASPECT, paintPortrait} from "./portrait-layout.js";
 
 export function framingVisual(item, mode = "reveal") {
   const config = characterConfig(item), saved = config.snapshot || {}, overrides = config.overrides || {}, legacy = item.reveal || {};
@@ -60,7 +60,7 @@ export function attachArtFraming(container, item, {onChange = () => {}, load = l
   };
   const change = patch => {onChange(mode === "portrait" ? Object.fromEntries(Object.entries(patch).map(([key, value]) => [key.replace(/^art/, "portrait"), value])) : patch); schedule();};
   const setAspect = () => {
-    const ratio = mode === "portrait" ? 1.75 : (globalThis.window?.innerWidth || 16) / (globalThis.window?.innerHeight || 9);
+    const ratio = mode === "portrait" ? PORTRAIT_ASPECT : (globalThis.window?.innerWidth || 16) / (globalThis.window?.innerHeight || 9);
     wrapper?.style?.setProperty("--tgs-art-preview-ratio", String(ratio)); schedule();
   };
   canvas.addEventListener("pointerdown", event => {

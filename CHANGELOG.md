@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.9
+
+- Match the five-star lead-in to the PS5 reference with a subdued Path emblem,
+  blue light columns, and the larger center star aligned to its visible center.
+- Bring Light Cone artwork in large and settle it near half the screen height.
+  Slide the reward nameplate into place during the reveal.
+- Widen and offset the 3–4–3 summary rows, with upright Light Cone artwork,
+  Path and element icons, gold stars, and purple or gold highlights.
+- Use the same wider frame in the summary portrait editor and the result cards.
+
 ## 1.0.8
 
 - Wait for decoded future frames in the actual cinematic video element after

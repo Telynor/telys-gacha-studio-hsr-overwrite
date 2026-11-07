@@ -3,7 +3,7 @@ import {loadAsset, drawAnchored} from "./assets.js";
 import {newSequence, seekSequence, advanceSequence, skipTenPull, backgroundAt, readyAt, hasSummary} from "./model.js";
 import {videoCache as browserVideoCache} from "./video-cache.js";
 import {auraSource, prepareSequenceVideos} from "./video-preload.js";
-import {portraitStyle} from "./portrait-layout.js";
+import {PORTRAIT_ASPECT, portraitStyle} from "./portrait-layout.js";
 import {waitForVideoReady, reduceBackgroundRendering, monitorCinematic} from "./video-playback.js";
 
 const fitted = (context, value, max) => {
@@ -14,25 +14,41 @@ const fitted = (context, value, max) => {
 };
 
 export function paintIntro(context, width, height, time, star, path, dpr = 1) {
-  const unit = Math.max(1, Math.min(width / 736, height / 414));
+  const unit = Math.min(width / 1280, height / 720);
+  const positions = [-175, -96, 0, 96, 175];
+  const starts = [140, 300, 455, 300, 140];
+  const durations = [280, 260, 195, 260, 280];
   const exit = smooth((time - 1220) / 380), shrink = 1 - exit * .075;
   context.fillStyle = "#000"; context.fillRect(0, 0, width, height);
   context.save(); context.globalAlpha = (1 - exit) * smooth(time / 180);
   const blue = context.createRadialGradient(width / 2, height * .8, 0, width / 2, height * .8, Math.max(width * .25, height * .6));
   blue.addColorStop(0, "rgba(34,57,126,.2)"); blue.addColorStop(.55, "rgba(15,31,76,.1)"); blue.addColorStop(1, "rgba(0,0,0,0)");
   context.fillStyle = blue; context.fillRect(0, 0, width, height); context.restore();
+  context.save();
+  const column = context.createLinearGradient(0, 0, 0, height);
+  column.addColorStop(0, "rgba(117,153,219,.14)");
+  column.addColorStop(.5, "rgba(117,153,219,.05)");
+  column.addColorStop(1, "rgba(117,153,219,.17)");
+  context.fillStyle = column;
+  for (let i = 0; i < positions.length; i++) {
+    const age = time - starts[i];
+    const fade = smooth(age / 95) * (1 - smooth((age - 120) / 320));
+    const lineWidth = (2 + 30 * fade) * unit;
+    context.globalAlpha = (1 - exit) * (i === 2 ? Math.max(fade, .55 * smooth(age / 90)) : fade);
+    context.fillRect(width / 2 + positions[i] * unit * shrink - lineWidth / 2, 0, lineWidth, height);
+  }
+  context.restore();
   // Icon and stars share one origin. Each bitmap is anchored to its visible bounds.
   context.save(); context.setTransform(dpr * shrink, 0, 0, dpr * shrink, width / 2 * dpr, height / 2 * dpr); context.globalAlpha = 1 - exit;
   if (path) {
-    const fit = Math.max(110 * unit, Math.min(185 * unit, width * .25)) / Math.max(path.boundsWidth, path.boundsHeight);
-    drawAnchored(context, path, 0, (1 - ease(time / 1050)) * 144 * unit, fit, smooth(time / 240) * .82);
+    const fit = 268 * unit / Math.max(path.boundsWidth, path.boundsHeight);
+    const opacity = .31 * smooth((time - starts[0]) / 240) * (1 - .25 * smooth((time - 650) / 550));
+    drawAnchored(context, path, 0, (1 - ease((time - starts[0]) / 510)) * 82 * unit, fit, opacity);
   }
   if (star) {
-    const starts = [0, 210, 560, 210, 0], durations = [400, 400, 490, 400, 400];
-    const gap = Math.min(width * .58, 310 * unit) / 4, small = width <= 380 ? 30 : 40 * unit;
-    for (let i = 0; i < 5; i++) drawAnchored(context, star, (i - 2) * gap,
-      (1 - ease((time - starts[i]) / durations[i])) * 96 * unit,
-      small * (i === 2 ? 2 : 1) / star.width, smooth((time - starts[i]) / 150));
+    for (let i = 0; i < positions.length; i++) drawAnchored(context, star, positions[i] * unit,
+      (1 - ease((time - starts[i]) / durations[i])) * 64 * unit,
+      64 * unit * (i === 2 ? 2 : 1) / star.width, smooth((time - starts[i]) / 110));
   }
   context.restore();
 }
@@ -63,46 +79,53 @@ export function paintRarityFlash(context, width, height, age, stars, dpr = 1) {
 }
 
 export function paintNameplate(context, width, height, time, visual, images, star) {
-  const opacity = smooth((time - backgroundAt(visual.stars)) / 360);
+  const age = time - backgroundAt(visual.stars);
+  const opacity = smooth(age / 360);
   if (opacity <= 0) return;
-  const size = Math.max(.66, Math.min(1.2, width / 1024)), left = width <= 420 ? 16 : width * .08;
-  const body = height * .5, iconBox = 56 * size, textX = left + iconBox + 12 * size, barWidth = Math.min(width * .49, 520);
+  const size = Math.max(.52, Math.min(width / 1280, height / 720));
+  const body = height * .5;
+  const textX = width * (.183 + .115 * (1 - ease(age / 650)));
+  const barWidth = Math.min(width * .62, textX + 266 * size);
   context.save(); context.globalAlpha *= opacity; context.textAlign = "left"; context.textBaseline = "alphabetic";
   const band = context.createLinearGradient(0, 0, barWidth, 0);
   band.addColorStop(0, "rgba(3,6,15,.76)"); band.addColorStop(.55, "rgba(3,6,15,.72)"); band.addColorStop(1, "rgba(3,6,15,0)");
-  context.fillStyle = band; context.fillRect(0, body - 3 * size, barWidth, 81 * size);
+  context.fillStyle = band; context.fillRect(0, body - 8 * size, barWidth, 64 * size);
   const category = visual.kind === "character" ? "Character" : visual.kind === "lightCone" ? "Light Cone" : "Item";
-  const badgeTop = body - 29 * size;
-  context.font = `500 ${18 * size}px Arial, sans-serif`;
-  const badgeWidth = context.measureText(category).width + 15 * size;
-  context.fillStyle = "#e5e8e9"; context.fillRect(textX, badgeTop, badgeWidth, 24 * size);
-  context.fillStyle = "#202832"; context.fillText(category, textX + 6 * size, badgeTop + 18 * size);
+  const badgeTop = body - 34 * size;
+  context.font = `500 ${16 * size}px Arial, sans-serif`;
+  const badgeWidth = context.measureText(category).width + 36 * size;
+  context.fillStyle = "#e5e8e9"; context.fillRect(textX, badgeTop, badgeWidth, 20 * size);
+  context.fillStyle = "#202832"; context.fillText(category, textX + 6 * size, badgeTop + 15 * size);
   const main = visual.kind === "character" ? images.element : images.path;
-  if (main) drawAnchored(context, main, left + iconBox / 2, body + 43 * size, 56 * size / Math.max(main.boundsWidth, main.boundsHeight));
-  const maxName = Math.max(90, Math.min(width * .47, 500) - textX - 12);
-  let fontSize = 34 * size; context.font = `500 ${fontSize}px Arial, sans-serif`;
-  while (context.measureText(visual.name).width > maxName && fontSize > 16) {fontSize -= .5; context.font = `500 ${fontSize}px Arial, sans-serif`;}
+  if (main) drawAnchored(context, main, textX - 36 * size, body + 24 * size, 58 * size / Math.max(main.boundsWidth, main.boundsHeight));
+  const maxName = Math.max(90, Math.min(width * .34, 360 * size));
+  let fontSize = 28 * size; context.font = `500 ${fontSize}px Arial, sans-serif`;
+  while (context.measureText(visual.name).width > maxName && fontSize > 14 * size) {fontSize -= .5; context.font = `500 ${fontSize}px Arial, sans-serif`;}
   context.fillStyle = "#f4f5f7"; context.shadowColor = "rgba(0,0,0,.7)"; context.shadowBlur = 2;
-  context.fillText(fitted(context, visual.name, maxName), textX, body + 36 * size); context.shadowBlur = 0;
-  if (star) for (let i = 0; i < visual.stars; i++) drawAnchored(context, star, textX + (9 + i * 20) * size, body + 62 * size, 18 * size / star.width);
-  if (visual.pathName) {
-    const top = body + 86 * size, max = Math.max(72, width - textX - 18), padding = (images.path ? 43 : 18) * size;
-    context.font = `400 ${18 * size}px Arial, sans-serif`;
+  context.fillText(fitted(context, visual.name, maxName), textX, body + 22 * size); context.shadowBlur = 0;
+  if (star) for (let i = 0; i < visual.stars; i++) drawAnchored(context, star, textX + (7 + i * 14) * size, body + 38 * size, 14 * size / star.width);
+  if (visual.pathName && (visual.kind === "character" || visual.stars > 3)) {
+    const top = body + 58 * size, max = Math.max(72, width - textX - 18), padding = (images.path ? 33 : 18) * size;
+    context.font = `400 ${16 * size}px Arial, sans-serif`;
     const label = fitted(context, visual.pathName, max - padding), box = Math.min(max, context.measureText(label).width + padding);
-    context.fillStyle = "rgba(4,8,15,.88)"; context.fillRect(textX, top, box, 27 * size);
-    if (images.path) drawAnchored(context, images.path, textX + 15 * size, top + 13.5 * size, 22 * size / Math.max(images.path.boundsWidth, images.path.boundsHeight));
-    context.fillStyle = "#e8eaf0"; context.fillText(label, textX + (images.path ? 32 : 8) * size, top + 20 * size);
+    context.fillStyle = "rgba(4,8,15,.88)"; context.fillRect(textX, top, box, 23 * size);
+    if (images.path) drawAnchored(context, images.path, textX + 11 * size, top + 11.5 * size, 17 * size / Math.max(images.path.boundsWidth, images.path.boundsHeight));
+    context.fillStyle = "#e8eaf0"; context.fillText(label, textX + (images.path ? 23 : 8) * size, top + 17 * size);
   }
   context.restore();
 }
 
 export function paintArt(context, width, height, age, visual, image, dpr) {
   if (!image) return;
-  const fit = Math.min(width * .94 / image.boundsWidth, height * (visual.kind === "character" ? .94 : .86) / image.boundsHeight);
-  const scale = fit * (.96 + .04 * ease(age / 650)) * (visual.artScale || 100) / 100;
-  const x = width * (.5 + (Number(visual.artX) || 0) / 100), y = height * (.5 + (Number(visual.artY) || 0) / 100);
+  const cone = visual.kind === "lightCone", character = visual.kind === "character";
+  const fitHeight = cone ? .50 : character ? .94 : .86;
+  const fit = Math.min(width * (cone ? .29 : .94) / image.boundsWidth, height * fitHeight / image.boundsHeight);
+  const entryZoom = cone ? .92 : character ? .25 : -.04;
+  const scale = fit * (1 + entryZoom * (1 - ease(age / 650))) * (visual.artScale || 100) / 100;
+  const x = width * (.5 + (Number(visual.artX) || 0) / 100);
+  const y = height * ((cone ? .478 : .5) + (Number(visual.artY) || 0) / 100);
   context.save(); context.setTransform(dpr, 0, 0, dpr, x * dpr, y * dpr); context.globalAlpha = smooth(age / 360);
-  if (visual.kind === "lightCone") context.rotate(.085);
+  if (cone) context.rotate(.12);
   drawAnchored(context, image, 0, 0, scale); context.restore();
 }
 
@@ -165,7 +188,9 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
         const rect = overlay.getBoundingClientRect(); if (!rect.width || !rect.height) return;
         width = rect.width; height = rect.height; dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
         frame.width = Math.round(width * dpr); frame.height = Math.round(height * dpr);
-        rows.style.setProperty("--tgs-grid-width", `${Math.min(width * .85, (height - 66) / .66)}px`); draw();
+        rows.style.setProperty("--tgs-grid-width", `${Math.min(width * 1.04, height * 1.86)}px`);
+        rows.style.setProperty("--tgs-card-aspect", String(PORTRAIT_ASPECT));
+        draw();
       };
       const observer = typeof ResizeObserver === "function" ? new ResizeObserver(resize) : null;
       observer?.observe(overlay); window.addEventListener("resize", resize, {signal: controller.signal}); resize();
@@ -230,14 +255,21 @@ export async function playSequence(results, visuals, banner = {}, {rate = 1.5, o
       function showSummary() {
         if (!hasSummary(state)) return finish();
         cancelAnimationFrame(raf); auraVersion++; skipTen.hidden = true;
-        aura.pause(); aura.style.opacity = "0"; field.style.opacity = "1"; hint.hidden = true; counter.hidden = true;
+        aura.pause(); aura.style.opacity = "0"; field.style.opacity = "1"; counter.hidden = true;
+        hint.textContent = "Click anywhere to close"; hint.hidden = false;
         context.setTransform(1, 0, 0, 1, 0, 0); context.clearRect(0, 0, frame.width, frame.height);
         const line = [3, 4, 3].map(() => {const row = document.createElement("div"); row.className = "tgs-result-row"; rows.append(row); return row;});
         visuals.forEach((visual, index) => {
-          const card = document.createElement("div"); card.className = `tgs-result-card${visual.kind === "character" ? " tgs-character-card" : ""}`;
+          const character = visual.kind === "character";
+          const card = document.createElement("div"); card.className = `tgs-result-card${character ? " tgs-character-card" : ""}`;
           card.dataset.stars = String(visual.stars); card.style.setProperty("--tgs-card-color", `rgb(${(COLORS[visual.stars] || COLORS[3]).join(',')})`); card.style.setProperty("--tgs-card-delay", `${index * 30}ms`);
           card.setAttribute("aria-label", `Reward ${index + 1}: ${visual.name}, ${visual.stars} stars`);
-          card.innerHTML = `<img class="tgs-result-art" src="${escapeHTML(visual.cardArt || visual.art)}" ${visual.kind === "character" ? `style="${portraitStyle(visual, images[index].card)}"` : ""} alt="">${visual.pathIcon && visual.kind !== "character" ? `<img class="tgs-result-path" src="${escapeHTML(visual.pathIcon)}" alt="">` : ""}<span class="tgs-result-rarity">${visual.stars ? `${visual.stars}★` : "—"}</span><span class="tgs-result-name">${escapeHTML(visual.name)}</span>`;
+          card.setAttribute("title", visual.name);
+          const icon = character ? visual.elementIcon : visual.pathIcon;
+          const iconClass = character ? "tgs-result-element" : "tgs-result-path";
+          const stars = Array.from({length: Math.floor(clamp(visual.stars, 0, 5))}, () => `<img src="${asset("star.png")}" alt="">`).join("");
+          card.innerHTML = `<img class="tgs-result-art" src="${escapeHTML(visual.cardArt || visual.art)}" ${character ? `style="${portraitStyle(visual, images[index].card)}"` : ""} alt="">
+            <div class="tgs-result-meta">${icon ? `<img class="${iconClass}" src="${escapeHTML(icon)}" alt="">` : ""}<span class="tgs-result-rarity">${stars}</span></div>`;
           line[index < 3 ? 0 : index < 7 ? 1 : 2].append(card);
         });
         summary.hidden = false; announcement.textContent = "Ten-pull complete. Ten rewards are shown. Click anywhere to close.";

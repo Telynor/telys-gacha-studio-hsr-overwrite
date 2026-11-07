@@ -75,10 +75,13 @@ screen shape.
   video loads. Consecutive rewards restart their aura from the beginning.
 - Characters use full, unframed splash art with their name, element icon,
   star count, and Path label. Light Cones use their linked reward Item's art.
+  Light Cones settle at a smaller size as the nameplate slides into place.
   Their supplied artwork and icon borders are preserved without extra outlines.
 - Every reward holds until one click, Enter, Space, or Escape advances it.
 - Singles close after their reward. Only a ten-pull shows the angled,
-  staggered **3–4–3** summary. Click that screen to close it.
+  staggered **3–4–3** summary. The top row shifts left and the bottom row shifts
+  right. Cards show the reward's artwork, icon, and stars. Hover a card for its
+  name, or click the screen to close the summary.
 - Ten-pulls have a **Skip** button in the top-right corner, during the opening
   video and individual reveals. It skips the rest of the opening and all
   remaining three-/four-star reveals. Every remaining five-star keeps its
@@ -130,6 +133,13 @@ and five-star opening clips configured there. They play before this extension's
 reward reveals. An opening can be skipped without changing the selected rewards.
 Disable **Keep configured opening videos** in this extension's settings to omit
 them. Reveal playback defaults to 1.5× and can be changed in Module Settings.
+
+In **Summon Cinematic**, select **Play Local Video File** and assign the
+purple-door opening to **Normal Pull Video** and the gold-door opening to
+**SSR Pull Video**. The SSR clip plays when any selected reward is five-star.
+Trim the opening to end at the door flash so the next scene can reveal the
+actual rewards. Shorter 720p30 H.264 clips reduce the amount of video the browser
+has to decode during the opening.
 
 ## Local video preloading
 
