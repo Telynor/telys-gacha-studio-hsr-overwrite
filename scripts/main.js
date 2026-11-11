@@ -1,3 +1,5 @@
+import {installBannerSettings} from "./banner-settings.js";
+import {installSharedPity} from "./banner-pity.js";
 import {ID, HOST_ID, setting} from "./constants.js";
 import {readCharacter, resolveVisual} from "./character.js";
 import {installProgrammer} from "./programmer.js";
@@ -8,6 +10,8 @@ import {installVideoPreloader, warmBannerVideos} from "./video-preload.js";
 import {getVideoPlaybackReports} from "./video-playback.js";
 
 Hooks.once("init", () => {
+  game.settings.register(ID, "bannerClasses", {scope: "world", config: false, type: Object, default: {}});
+  game.settings.register(ID, "defaultBanner", {scope: "world", config: false, type: String, default: ""});
   game.settings.register(ID, "enabled", {name: "Enable HSR pull overwrite", hint: "Use HSR character reveals and the ten-pull result layout for Gacha Studio pulls.", scope: "world", config: true, type: Boolean, default: true, requiresReload: true});
   game.settings.register(ID, "openingVideos", {name: "Keep configured opening videos", hint: "Play the existing banner's Video opening before the new reward reveals.", scope: "world", config: true, type: Boolean, default: true});
   game.settings.register(ID, "speed", {name: "Reveal playback speed", scope: "world", config: true, type: Number, range: {min: .5, max: 3, step: .25}, default: 1.5});
@@ -38,6 +42,8 @@ Hooks.once("ready", async () => {
       return GachaAnimation.play(results, {...banner, animation: {...banner.animation, type: "starRail"}});
     };
     installProgrammer(GachaConfigApp, {preview});
+    installBannerSettings(GachaConfigApp);
+    installSharedPity(CONFIG.Actor.documentClass);
     game.modules.get(ID).api = Object.freeze({readCharacter, resolveVisual, preview, getPullHistory, warmBannerVideos, videoCacheStats: () => videoCache.stats(), clearVideoCache: () => videoCache.clear(), getVideoPlaybackReports});
     console.info(`${ID} | v${game.modules.get(ID).version} installed on Gacha Studio. Host rewards are saved before reveal playback.`, {preloadVideos: setting(ID, "preloadVideos", true), reduceBackgroundRendering: setting(ID, "reduceBackgroundRendering", true)});
   } catch (error) {

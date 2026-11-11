@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.10
+
+- Share pity counters and featured guarantees across banners in the same classification.
+- Let GMs edit a player's pity and featured guarantee.
+- Add a default banner template and copy all reward tiers and awards from active or inactive banners.
+
 ## 1.0.9
 
 - Match the five-star lead-in to the PS5 reference with a subdued Path emblem,

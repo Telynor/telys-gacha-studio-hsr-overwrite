@@ -236,3 +236,20 @@ sample Welt artwork is not bundled.
 
 The extension's code is MIT licensed. Third-party/reference media retains its
 original ownership.
+
+## Shared pity and reward pools
+
+In a banner's General settings, enter a **Banner classification** such as
+Character Banner or Light Cone Banner. Matching names share featured rarity
+pity, ten-pull pity, and the 50/50 guarantee on each character. Names are
+matched without regard to case or extra spaces. A blank classification uses
+the original per-banner records. A new group starts with the first matching
+banner's existing progress in banner-list order, if any. The GM can override
+this under **Adjust player pity** by choosing a player with an assigned
+character. The editor uses the saved classification.
+
+In **Reward Pool**, choose any saved active or inactive banner and select
+**Replace reward pool** to copy its entries across all configured tiers.
+**Save Banner** commits the imported draft. Set **Default banner for new pools**
+to prefill newly created banners from that banner's current pool. The rarity
+definitions are world-wide in Gacha Studio.

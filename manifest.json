@@ -2,7 +2,7 @@
   "id": "telys-gacha-studio-hsr-overwrite",
   "title": "tely's gacha studio HSR overwrite",
   "description": "An extension for the existing Gacha Studio module: per-reward character Actor links, saved Path and element icons, full splash reveals, and a 3–4–3 ten-pull result screen. Uses Gacha Studio's actual rewards and item delivery.",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "authors": [
     {
       "name": "Telynor"
@@ -35,7 +35,7 @@
   ],
   "url": "https://github.com/Telynor/telys-gacha-studio-hsr-overwrite",
   "manifest": "https://raw.githubusercontent.com/Telynor/telys-gacha-studio-hsr-overwrite/main/manifest.json",
-  "download": "https://raw.githubusercontent.com/Telynor/telys-gacha-studio-hsr-overwrite/main/packages/telys-gacha-studio-hsr-overwrite-v1.0.9.zip",
+  "download": "https://raw.githubusercontent.com/Telynor/telys-gacha-studio-hsr-overwrite/main/packages/telys-gacha-studio-hsr-overwrite-v1.0.10.zip",
   "readme": "README.md",
   "license": "LICENSE",
   "bugs": "https://github.com/Telynor/telys-gacha-studio-hsr-overwrite/issues"
